@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "spi.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -42,7 +43,9 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+uint8_t temp[2];
+uint16_t Temp1;
+float Cels, Cels_filtered;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -84,6 +87,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -92,6 +96,26 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  /* SPI */
+	  HAL_GPIO_WritePin(CS_T1_GPIO_Port, CS_T1_Pin, GPIO_PIN_RESET);
+	  HAL_Delay(1);
+	  HAL_SPI_Receive(&hspi1, temp, 2, 10);
+	  HAL_GPIO_WritePin(CS_T1_GPIO_Port, CS_T1_Pin, GPIO_PIN_SET);
+
+	  /* Temperature Conversion */
+	  Temp1 = temp[1];
+	  Temp1 = Temp1 << 8;
+	  Temp1 = Temp1 + temp[0];
+	  Temp1 = Temp1 >> 3;
+	  Cels = (float) Temp1 * 0.25;
+
+	  /* IIR filter */
+	  Cels_filtered = (1 - 0.2) * Cels_filtered + 0.2 * Cels;
+
+	  /* Time delay */
+	  HAL_Delay(500);
+
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
