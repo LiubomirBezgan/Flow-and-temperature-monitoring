@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "spi.h"
+#include "tim.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -33,6 +34,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define FLOW_RATE_COEFFICIENT 5.5
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -43,9 +45,14 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+// Temperature monitoring
 uint8_t temp[2];
 uint16_t Temp1;
 float Cels, Cels_filtered;
+
+// Flow monitoring
+uint16_t my_counter = 0;
+float flow_rate;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -88,8 +95,11 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_SPI1_Init();
+  MX_TIM2_Init();
+  MX_TIM10_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1);
+  HAL_TIM_Base_Start_IT(&htim10);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -112,10 +122,10 @@ int main(void)
 	  /* IIR filter */
 	  Cels_filtered = (1 - 0.2) * Cels_filtered + 0.2 * Cels;
 
+	  flow_rate = (float) my_counter / FLOW_RATE_COEFFICIENT;
+
 	  /* Time delay */
-	  HAL_Delay(500);
-
-
+	  HAL_Delay(1000);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -170,7 +180,21 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
+{
+    if (TIM2 == htim->Instance) {
+    	my_counter++;
+    }
+}
 
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+
+	if (TIM10 == htim->Instance)
+	{
+		my_counter = 0;
+	}
+}
 /* USER CODE END 4 */
 
 /**
