@@ -46,12 +46,13 @@
 
 /* USER CODE BEGIN PV */
 // Temperature monitoring
+uint8_t i = 0;
 uint8_t temp[2];
-uint16_t Temp1;
-float Cels, Cels_filtered;
+uint16_t Temperature[4];
+float Cels[4], Cels_filtered[4];
 
 // Flow monitoring
-uint16_t my_counter = 0;
+volatile uint16_t my_counter = 0;
 float flow_rate;
 /* USER CODE END PV */
 
@@ -106,6 +107,8 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  i = 0;
+	  HAL_Delay(50);
 	  /* SPI */
 	  HAL_GPIO_WritePin(CS_T1_GPIO_Port, CS_T1_Pin, GPIO_PIN_RESET);
 	  HAL_Delay(1);
@@ -113,19 +116,75 @@ int main(void)
 	  HAL_GPIO_WritePin(CS_T1_GPIO_Port, CS_T1_Pin, GPIO_PIN_SET);
 
 	  /* Temperature Conversion */
-	  Temp1 = temp[1];
-	  Temp1 = Temp1 << 8;
-	  Temp1 = Temp1 + temp[0];
-	  Temp1 = Temp1 >> 3;
-	  Cels = (float) Temp1 * 0.25;
+	  Temperature[i] = temp[1];
+	  Temperature[i] = Temperature[i] << 8;
+	  Temperature[i] = Temperature[i] + temp[0];
+	  Temperature[i] = Temperature[i] >> 3;
+	  Cels[i] = (float) Temperature[i] * 0.25;
 
 	  /* IIR filter */
-	  Cels_filtered = (1 - 0.2) * Cels_filtered + 0.2 * Cels;
+	  Cels_filtered[i] = (1 - 0.2) * Cels_filtered[i] + 0.2 * Cels[i];
 
+	  i = 1;
+	  HAL_Delay(50);
+	  /* SPI */
+	  HAL_GPIO_WritePin(CS_T2_GPIO_Port, CS_T2_Pin, GPIO_PIN_RESET);
+	  HAL_Delay(1);
+	  HAL_SPI_Receive(&hspi1, temp, 2, 10);
+	  HAL_GPIO_WritePin(CS_T2_GPIO_Port, CS_T2_Pin, GPIO_PIN_SET);
+
+	  /* Temperature Conversion */
+	  Temperature[i] = temp[1];
+	  Temperature[i] = Temperature[i] << 8;
+	  Temperature[i] = Temperature[i] + temp[0];
+	  Temperature[i] = Temperature[i] >> 3;
+	  Cels[i] = (float) Temperature[i] * 0.25;
+
+	  /* IIR filter */
+	  Cels_filtered[i] = (1 - 0.2) * Cels_filtered[i] + 0.2 * Cels[i];
+
+	  i = 2;
+	  HAL_Delay(50);
+	  /* SPI */
+	  HAL_GPIO_WritePin(CS_T3_GPIO_Port, CS_T3_Pin, GPIO_PIN_RESET);
+	  HAL_Delay(1);
+	  HAL_SPI_Receive(&hspi1, temp, 2, 10);
+	  HAL_GPIO_WritePin(CS_T3_GPIO_Port, CS_T3_Pin, GPIO_PIN_SET);
+
+	  /* Temperature Conversion */
+	  Temperature[i] = temp[1];
+	  Temperature[i] = Temperature[i] << 8;
+	  Temperature[i] = Temperature[i] + temp[0];
+	  Temperature[i] = Temperature[i] >> 3;
+	  Cels[i] = (float) Temperature[i] * 0.25;
+
+	  /* IIR filter */
+	  Cels_filtered[i] = (1 - 0.2) * Cels_filtered[i] + 0.2 * Cels[i];
+
+	  i = 3;
+	  HAL_Delay(50);
+	  /* SPI */
+	  HAL_GPIO_WritePin(CS_T4_GPIO_Port, CS_T4_Pin, GPIO_PIN_RESET);
+	  HAL_Delay(1);
+	  HAL_SPI_Receive(&hspi1, temp, 2, 10);
+	  HAL_GPIO_WritePin(CS_T4_GPIO_Port, CS_T4_Pin, GPIO_PIN_SET);
+
+	  /* Temperature Conversion */
+	  Temperature[i] = temp[1];
+	  Temperature[i] = Temperature[i] << 8;
+	  Temperature[i] = Temperature[i] + temp[0];
+	  Temperature[i] = Temperature[i] >> 3;
+	  Cels[i] = (float) Temperature[i] * 0.25;
+
+	  /* IIR filter */
+	  Cels_filtered[i] = (1 - 0.2) * Cels_filtered[i] + 0.2 * Cels[i];
+
+	  /* Flow rate */
 	  flow_rate = (float) my_counter / FLOW_RATE_COEFFICIENT;
 
 	  /* Time delay */
-	  HAL_Delay(1000);
+	  HAL_Delay(100);
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
