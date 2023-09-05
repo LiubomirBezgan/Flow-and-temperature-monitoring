@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "cmsis_os.h"
 #include "spi.h"
 #include "tim.h"
 #include "gpio.h"
@@ -29,12 +30,22 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+typedef struct temperature_monitoring {
+	SPI_HandleTypeDef * hspi;
+	GPIO_TypeDef* CS_GPIOx;
+	uint16_t CS_GPIO_Pin;
+	uint16_t Temperature;
+	float Celsius;
+	float Celsius_filtered;
+} Temp_monitoring_t;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define THERMOCOUPLES_NUMBER 4
 #define FLOW_RATE_COEFFICIENT 5.5
+#define STACK_SIZE_NORMAL 512
+#define STACK_SIZE_SHORT 256
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -45,21 +56,65 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+//CMSIS-RTOS2
+uint32_t T1_TaskProfiler, T2_TaskProfiler, T3_TaskProfiler, T4_TaskProfiler;
+
+const osThreadAttr_t T1_attr = {
+		.name = "Temp1_thread",
+		.stack_size = STACK_SIZE_NORMAL,
+		.priority = osPriorityNormal
+};
+const osThreadAttr_t T2_attr = {
+		.name = "Temp2_thread",
+		.stack_size = STACK_SIZE_NORMAL,
+		.priority = osPriorityNormal
+};
+const osThreadAttr_t T3_attr = {
+		.name = "Temp3_thread",
+		.stack_size = STACK_SIZE_NORMAL,
+		.priority = osPriorityNormal
+};
+const osThreadAttr_t T4_attr = {
+		.name = "Temp1_thread",
+		.stack_size = STACK_SIZE_NORMAL,
+		.priority = osPriorityNormal
+};
+
+const osSemaphoreAttr_t spi_sem_attr = {
+		.name = "SPI Semaphore"
+};
+
+osSemaphoreId_t spi_sem_id;
+
+const osThreadAttr_t FlowHot_attr = {
+		.name = "HotWaterFlow_thread",
+		.stack_size = STACK_SIZE_SHORT,
+		.priority = osPriorityBelowNormal
+};
+
+const osMessageQueueAttr_t pulses_hot_queue_attr = {
+		.name = "Hot water queue"
+};
+osMessageQueueId_t pulses_hot_water_queue_id;
 // Temperature monitoring
 uint8_t i = 0;
 uint8_t temp[2];
 uint16_t Temperature[4];
 float Cels[4], Cels_filtered[4];
+Temp_monitoring_t Thermocouple[THERMOCOUPLES_NUMBER];
 
 // Flow monitoring
-volatile uint16_t my_counter = 0;
+/*volatile*/ uint16_t my_counter = 0;
 float flow_rate;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
+void MX_FREERTOS_Init(void);
 /* USER CODE BEGIN PFP */
-
+void LB_Init_Temp_Monitoring(Temp_monitoring_t * tcouple_array);
+void vTempReading(void * pvParameters);
+void vFlowReading(void * pvParameters);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -101,89 +156,40 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1);
   HAL_TIM_Base_Start_IT(&htim10);
+
+  LB_Init_Temp_Monitoring(Thermocouple);
+
   /* USER CODE END 2 */
 
+  /* Init scheduler */
+  osKernelInitialize();  /* Call init function for freertos objects (in freertos.c) */
+  MX_FREERTOS_Init();
+
+  osThreadNew(vTempReading, Thermocouple + 0, &T1_attr);
+  osThreadNew(vTempReading, Thermocouple + 1, &T2_attr);
+  osThreadNew(vTempReading, Thermocouple + 2, &T3_attr);
+  osThreadNew(vTempReading, Thermocouple + 3, &T4_attr);
+
+  osThreadNew(vFlowReading, NULL, &FlowHot_attr);
+
+  spi_sem_id = osSemaphoreNew(1, 1, &spi_sem_attr);
+
+  pulses_hot_water_queue_id = osMessageQueueNew(1, sizeof(uint16_t), &pulses_hot_queue_attr);
+
+
+  /* Start scheduler */
+  osKernelStart();
+
+  /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  i = 0;
-	  HAL_Delay(50);
-	  /* SPI */
-	  HAL_GPIO_WritePin(CS_T1_GPIO_Port, CS_T1_Pin, GPIO_PIN_RESET);
-	  HAL_Delay(1);
-	  HAL_SPI_Receive(&hspi1, temp, 2, 10);
-	  HAL_GPIO_WritePin(CS_T1_GPIO_Port, CS_T1_Pin, GPIO_PIN_SET);
-
-	  /* Temperature Conversion */
-	  Temperature[i] = temp[1];
-	  Temperature[i] = Temperature[i] << 8;
-	  Temperature[i] = Temperature[i] + temp[0];
-	  Temperature[i] = Temperature[i] >> 3;
-	  Cels[i] = (float) Temperature[i] * 0.25;
-
-	  /* IIR filter */
-	  Cels_filtered[i] = (1 - 0.2) * Cels_filtered[i] + 0.2 * Cels[i];
-
-	  i = 1;
-	  HAL_Delay(50);
-	  /* SPI */
-	  HAL_GPIO_WritePin(CS_T2_GPIO_Port, CS_T2_Pin, GPIO_PIN_RESET);
-	  HAL_Delay(1);
-	  HAL_SPI_Receive(&hspi1, temp, 2, 10);
-	  HAL_GPIO_WritePin(CS_T2_GPIO_Port, CS_T2_Pin, GPIO_PIN_SET);
-
-	  /* Temperature Conversion */
-	  Temperature[i] = temp[1];
-	  Temperature[i] = Temperature[i] << 8;
-	  Temperature[i] = Temperature[i] + temp[0];
-	  Temperature[i] = Temperature[i] >> 3;
-	  Cels[i] = (float) Temperature[i] * 0.25;
-
-	  /* IIR filter */
-	  Cels_filtered[i] = (1 - 0.2) * Cels_filtered[i] + 0.2 * Cels[i];
-
-	  i = 2;
-	  HAL_Delay(50);
-	  /* SPI */
-	  HAL_GPIO_WritePin(CS_T3_GPIO_Port, CS_T3_Pin, GPIO_PIN_RESET);
-	  HAL_Delay(1);
-	  HAL_SPI_Receive(&hspi1, temp, 2, 10);
-	  HAL_GPIO_WritePin(CS_T3_GPIO_Port, CS_T3_Pin, GPIO_PIN_SET);
-
-	  /* Temperature Conversion */
-	  Temperature[i] = temp[1];
-	  Temperature[i] = Temperature[i] << 8;
-	  Temperature[i] = Temperature[i] + temp[0];
-	  Temperature[i] = Temperature[i] >> 3;
-	  Cels[i] = (float) Temperature[i] * 0.25;
-
-	  /* IIR filter */
-	  Cels_filtered[i] = (1 - 0.2) * Cels_filtered[i] + 0.2 * Cels[i];
-
-	  i = 3;
-	  HAL_Delay(50);
-	  /* SPI */
-	  HAL_GPIO_WritePin(CS_T4_GPIO_Port, CS_T4_Pin, GPIO_PIN_RESET);
-	  HAL_Delay(1);
-	  HAL_SPI_Receive(&hspi1, temp, 2, 10);
-	  HAL_GPIO_WritePin(CS_T4_GPIO_Port, CS_T4_Pin, GPIO_PIN_SET);
-
-	  /* Temperature Conversion */
-	  Temperature[i] = temp[1];
-	  Temperature[i] = Temperature[i] << 8;
-	  Temperature[i] = Temperature[i] + temp[0];
-	  Temperature[i] = Temperature[i] >> 3;
-	  Cels[i] = (float) Temperature[i] * 0.25;
-
-	  /* IIR filter */
-	  Cels_filtered[i] = (1 - 0.2) * Cels_filtered[i] + 0.2 * Cels[i];
-
-	  /* Flow rate */
-	  flow_rate = (float) my_counter / FLOW_RATE_COEFFICIENT;
-
-	  /* Time delay */
-	  HAL_Delay(100);
+//	  /* Flow rate */
+//	  flow_rate = (float) my_counter / FLOW_RATE_COEFFICIENT;
+//
+//	  /* Time delay */
+//	  HAL_Delay(100);
 
     /* USER CODE END WHILE */
 
@@ -246,22 +252,107 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+void LB_Init_Temp_Monitoring(Temp_monitoring_t * tcouple_array)
+{
+	(tcouple_array + 0)->hspi = &hspi1;
+	(tcouple_array + 0)->CS_GPIOx =	CS_T1_GPIO_Port;
+	(tcouple_array + 0)->CS_GPIO_Pin = CS_T1_Pin;
+
+	(tcouple_array + 1)->hspi = &hspi1;
+	(tcouple_array + 1)->CS_GPIOx =	CS_T2_GPIO_Port;
+	(tcouple_array + 1)->CS_GPIO_Pin = CS_T2_Pin;
+
+	(tcouple_array + 2)->hspi = &hspi1;
+	(tcouple_array + 2)->CS_GPIOx =	CS_T3_GPIO_Port;
+	(tcouple_array + 2)->CS_GPIO_Pin = CS_T3_Pin;
+
+	(tcouple_array + 3)->hspi = &hspi1;
+	(tcouple_array + 3)->CS_GPIOx =	CS_T4_GPIO_Port;
+	(tcouple_array + 3)->CS_GPIO_Pin = CS_T4_Pin;
+}
+
+void vTempReading(void * pvParameters)
+{
+	Temp_monitoring_t * p_tcouple = (Temp_monitoring_t *) pvParameters;
+	while(1)
+	{
+		osSemaphoreAcquire(spi_sem_id, osWaitForever);
+
+		/* SPI */
+		HAL_GPIO_WritePin(p_tcouple->CS_GPIOx, p_tcouple->CS_GPIO_Pin, GPIO_PIN_RESET);
+		HAL_Delay(1);
+		HAL_SPI_Receive(p_tcouple->hspi, temp, 2, 10);
+		HAL_GPIO_WritePin(p_tcouple->CS_GPIOx, p_tcouple->CS_GPIO_Pin, GPIO_PIN_SET);
+
+//		osSemaphoreRelease(spi_sem_id);
+
+		/* Temperature Conversion */
+		p_tcouple->Temperature = temp[1];
+		p_tcouple->Temperature = p_tcouple->Temperature << 8;
+		p_tcouple->Temperature = p_tcouple->Temperature + temp[0];
+		p_tcouple->Temperature = p_tcouple->Temperature >> 3;
+		p_tcouple->Celsius = (float) p_tcouple->Temperature * 0.25;
+
+		/* IIR filter */
+		p_tcouple->Celsius_filtered = (1 - 0.2) * p_tcouple->Celsius_filtered + 0.2 * p_tcouple->Celsius;
+
+		osSemaphoreRelease(spi_sem_id);
+		osDelay(250);
+	}
+}
+
+void vFlowReading(void * pvParameters)
+{
+	uint16_t pulse_counter;
+	while(1)
+	{
+		osMessageQueueGet(pulses_hot_water_queue_id, &pulse_counter, NULL, osWaitForever);
+		flow_rate = (float) pulse_counter / FLOW_RATE_COEFFICIENT;
+		osDelay(111);
+	}
+}
+
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 {
     if (TIM2 == htim->Instance) {
     	my_counter++;
+    	osMessageQueuePut(pulses_hot_water_queue_id, &my_counter, 0, 0);
     }
 }
 
+//void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+//{
+//
+//	if (TIM10 == htim->Instance)
+//	{
+//		my_counter = 0;
+//	}
+//}
+/* USER CODE END 4 */
+
+/**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM1 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
+  /* USER CODE BEGIN Callback 0 */
 
+  /* USER CODE END Callback 0 */
+  if (TIM1 == htim->Instance) {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
 	if (TIM10 == htim->Instance)
 	{
 		my_counter = 0;
 	}
+  /* USER CODE END Callback 1 */
 }
-/* USER CODE END 4 */
 
 /**
   * @brief  This function is executed in case of error occurrence.
