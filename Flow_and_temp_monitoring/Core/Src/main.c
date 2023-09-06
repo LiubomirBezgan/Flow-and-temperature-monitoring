@@ -19,17 +19,21 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
+#include "i2c.h"
 #include "spi.h"
 #include "tim.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+// Humidity sensor
+#include "bme280_add.h"
 
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+// Temperature monitoring
 typedef struct temperature_monitoring {
 	SPI_HandleTypeDef * hspi;
 	GPIO_TypeDef* CS_GPIOx;
@@ -42,8 +46,13 @@ typedef struct temperature_monitoring {
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+// Temperature monitoring
 #define THERMOCOUPLES_NUMBER 4
+
+// Flow monitoring
 #define FLOW_RATE_COEFFICIENT 5.5
+
+// CMSIS-RTOS2
 #define STACK_SIZE_NORMAL 512
 #define STACK_SIZE_SHORT 256
 /* USER CODE END PD */
@@ -56,9 +65,7 @@ typedef struct temperature_monitoring {
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-//CMSIS-RTOS2
-uint32_t T1_TaskProfiler, T2_TaskProfiler, T3_TaskProfiler, T4_TaskProfiler;
-
+// CMSIS-RTOS2
 const osThreadAttr_t T1_attr = {
 		.name = "Temp1_thread",
 		.stack_size = STACK_SIZE_NORMAL,
@@ -88,16 +95,23 @@ osSemaphoreId_t spi_sem_id;
 
 const osThreadAttr_t FlowHot_attr = {
 		.name = "HotWaterFlow_thread",
-		.stack_size = STACK_SIZE_SHORT,
-		.priority = osPriorityBelowNormal
+		.stack_size = STACK_SIZE_NORMAL,
+		.priority = osPriorityBelowNormal1
 };
 
 const osMessageQueueAttr_t pulses_hot_queue_attr = {
 		.name = "Hot water queue"
 };
+
 osMessageQueueId_t pulses_hot_water_queue_id;
+
+const osThreadAttr_t Humid_attr = {
+		.name = "HumidityReading_thread",
+		.stack_size = STACK_SIZE_NORMAL,
+		.priority = osPriorityBelowNormal1
+};
+
 // Temperature monitoring
-uint8_t i = 0;
 uint8_t temp[2];
 uint16_t Temperature[4];
 float Cels[4], Cels_filtered[4];
@@ -106,15 +120,26 @@ Temp_monitoring_t Thermocouple[THERMOCOUPLES_NUMBER];
 // Flow monitoring
 /*volatile*/ uint16_t my_counter = 0;
 float flow_rate;
+
+// Temperature, humidity and pressure measurement
+struct bme280_dev bme280_sens_dev;
+struct bme280_data bme280_sens_data;
+//struct bme280_data bme280_sens_logging_data;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 void MX_FREERTOS_Init(void);
 /* USER CODE BEGIN PFP */
+// Temperature monitoring
 void LB_Init_Temp_Monitoring(Temp_monitoring_t * tcouple_array);
 void vTempReading(void * pvParameters);
+
+// Flow monitoring
 void vFlowReading(void * pvParameters);
+
+// Temperature, humidity and pressure measurement
+void vHumidReading(void * pvParameters);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -153,29 +178,41 @@ int main(void)
   MX_SPI1_Init();
   MX_TIM2_Init();
   MX_TIM10_Init();
+  MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
-  HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1);
-  HAL_TIM_Base_Start_IT(&htim10);
 
+  // The initialization of temperature monitoring
   LB_Init_Temp_Monitoring(Thermocouple);
 
+  // The initialization of humidity sensor
+  BME280_init(&bme280_sens_dev);
+
+  // The initialization of timers
+  HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1);
+  HAL_TIM_Base_Start_IT(&htim10);
   /* USER CODE END 2 */
 
   /* Init scheduler */
   osKernelInitialize();  /* Call init function for freertos objects (in freertos.c) */
   MX_FREERTOS_Init();
 
+  // SAVE THIS CODE BEGIN
+  // Temperature monitoring
   osThreadNew(vTempReading, Thermocouple + 0, &T1_attr);
   osThreadNew(vTempReading, Thermocouple + 1, &T2_attr);
   osThreadNew(vTempReading, Thermocouple + 2, &T3_attr);
   osThreadNew(vTempReading, Thermocouple + 3, &T4_attr);
 
-  osThreadNew(vFlowReading, NULL, &FlowHot_attr);
-
   spi_sem_id = osSemaphoreNew(1, 1, &spi_sem_attr);
+
+  // Flow monitoring
+  osThreadNew(vFlowReading, NULL, &FlowHot_attr);
 
   pulses_hot_water_queue_id = osMessageQueueNew(1, sizeof(uint16_t), &pulses_hot_queue_attr);
 
+  // Temperature, humidity and pressure measurement
+  osThreadNew(vHumidReading, NULL, &Humid_attr);
+  // SAVE THIS CODE END
 
   /* Start scheduler */
   osKernelStart();
@@ -185,12 +222,6 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-//	  /* Flow rate */
-//	  flow_rate = (float) my_counter / FLOW_RATE_COEFFICIENT;
-//
-//	  /* Time delay */
-//	  HAL_Delay(100);
-
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -252,6 +283,7 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+// Temperature monitoring
 void LB_Init_Temp_Monitoring(Temp_monitoring_t * tcouple_array)
 {
 	(tcouple_array + 0)->hspi = &hspi1;
@@ -284,6 +316,7 @@ void vTempReading(void * pvParameters)
 		HAL_SPI_Receive(p_tcouple->hspi, temp, 2, 10);
 		HAL_GPIO_WritePin(p_tcouple->CS_GPIOx, p_tcouple->CS_GPIO_Pin, GPIO_PIN_SET);
 
+//		OPTION 1
 //		osSemaphoreRelease(spi_sem_id);
 
 		/* Temperature Conversion */
@@ -296,19 +329,32 @@ void vTempReading(void * pvParameters)
 		/* IIR filter */
 		p_tcouple->Celsius_filtered = (1 - 0.2) * p_tcouple->Celsius_filtered + 0.2 * p_tcouple->Celsius;
 
+//		OPTION 2
 		osSemaphoreRelease(spi_sem_id);
-		osDelay(250);
+
+		osDelay(pdMS_TO_TICKS(250UL));
 	}
 }
 
+// Flow monitoring
 void vFlowReading(void * pvParameters)
 {
-	uint16_t pulse_counter;
+	uint16_t pulse_counter;		// TODO: solve the problem with counter
 	while(1)
 	{
 		osMessageQueueGet(pulses_hot_water_queue_id, &pulse_counter, NULL, osWaitForever);
 		flow_rate = (float) pulse_counter / FLOW_RATE_COEFFICIENT;
-		osDelay(111);
+		osDelay(pdMS_TO_TICKS(111UL));
+	}
+}
+
+// Temperature, humidity and pressure measurement
+void vHumidReading(void * pvParameters)
+{
+	while(1)
+	{
+		BME280_read_data(&bme280_sens_dev, &bme280_sens_data);
+		osDelay(pdMS_TO_TICKS(444UL));
 	}
 }
 
@@ -343,13 +389,13 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   /* USER CODE BEGIN Callback 0 */
 
   /* USER CODE END Callback 0 */
-  if (TIM1 == htim->Instance) {
+  if (htim->Instance == TIM1) {
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
 	if (TIM10 == htim->Instance)
 	{
-		my_counter = 0;
+		my_counter = 0;		// TODO: solve the problem with counter
 	}
   /* USER CODE END Callback 1 */
 }
