@@ -42,6 +42,13 @@ typedef struct temperature_monitoring {
 	float Celsius;
 	float Celsius_filtered;
 } Temp_monitoring_t;
+
+// Flow monitoring
+typedef struct flow_monitoring {
+	TIM_HandleTypeDef *htim;
+	uint16_t pulse_counter;
+	float flow_rate;
+} Flow_monitoring_t;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -50,11 +57,11 @@ typedef struct temperature_monitoring {
 #define THERMOCOUPLES_NUMBER 4
 
 // Flow monitoring
+#define LIQUID_FLOW_SENSOR_NUMBER 2
 #define FLOW_RATE_COEFFICIENT 5.5
 
 // CMSIS-RTOS2
 #define STACK_SIZE_NORMAL 512
-#define STACK_SIZE_SHORT 256
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -93,17 +100,19 @@ const osSemaphoreAttr_t spi_sem_attr = {
 
 osSemaphoreId_t spi_sem_id;
 
+
 const osThreadAttr_t FlowHot_attr = {
 		.name = "HotWaterFlow_thread",
 		.stack_size = STACK_SIZE_NORMAL,
 		.priority = osPriorityBelowNormal1
 };
 
-const osMessageQueueAttr_t pulses_hot_queue_attr = {
-		.name = "Hot water queue"
+const osThreadAttr_t FlowCold_attr = {
+		.name = "ColdWaterFlow_thread",
+		.stack_size = STACK_SIZE_NORMAL,
+		.priority = osPriorityBelowNormal1
 };
 
-osMessageQueueId_t pulses_hot_water_queue_id;
 
 const osThreadAttr_t Humid_attr = {
 		.name = "HumidityReading_thread",
@@ -112,14 +121,12 @@ const osThreadAttr_t Humid_attr = {
 };
 
 // Temperature monitoring
-uint8_t temp[2];
-uint16_t Temperature[4];
-float Cels[4], Cels_filtered[4];
+//uint16_t Temperature[4];
+//float Cels[4], Cels_filtered[4];
 Temp_monitoring_t Thermocouple[THERMOCOUPLES_NUMBER];
 
 // Flow monitoring
-/*volatile*/ uint16_t my_counter = 0;
-float flow_rate;
+Flow_monitoring_t Liquid_flow_sensor[LIQUID_FLOW_SENSOR_NUMBER];
 
 // Temperature, humidity and pressure measurement
 struct bme280_dev bme280_sens_dev;
@@ -136,6 +143,7 @@ void LB_Init_Temp_Monitoring(Temp_monitoring_t * tcouple_array);
 void vTempReading(void * pvParameters);
 
 // Flow monitoring
+void LB_Init_Flow_Monitoring(Flow_monitoring_t * flow_sensor_array);
 void vFlowReading(void * pvParameters);
 
 // Temperature, humidity and pressure measurement
@@ -179,16 +187,21 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM10_Init();
   MX_I2C1_Init();
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
 
   // The initialization of temperature monitoring
   LB_Init_Temp_Monitoring(Thermocouple);
+
+  // The initialization of flow monitoring
+  LB_Init_Flow_Monitoring(Liquid_flow_sensor);
 
   // The initialization of humidity sensor
   BME280_init(&bme280_sens_dev);
 
   // The initialization of timers
   HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1);
+  HAL_TIM_IC_Start_IT(&htim3, TIM_CHANNEL_4);
   HAL_TIM_Base_Start_IT(&htim10);
   /* USER CODE END 2 */
 
@@ -206,12 +219,11 @@ int main(void)
   spi_sem_id = osSemaphoreNew(1, 1, &spi_sem_attr);
 
   // Flow monitoring
-  osThreadNew(vFlowReading, NULL, &FlowHot_attr);
-
-  pulses_hot_water_queue_id = osMessageQueueNew(1, sizeof(uint16_t), &pulses_hot_queue_attr);
+  osThreadNew(vFlowReading, Liquid_flow_sensor + 0, &FlowHot_attr);
+  osThreadNew(vFlowReading, Liquid_flow_sensor + 1, &FlowCold_attr);
 
   // Temperature, humidity and pressure measurement
-  osThreadNew(vHumidReading, NULL, &Humid_attr);
+  osThreadNew(vHumidReading, NULL, &Humid_attr);	// TODO: A humidity reading issue to be solved.
   // SAVE THIS CODE END
 
   /* Start scheduler */
@@ -305,6 +317,7 @@ void LB_Init_Temp_Monitoring(Temp_monitoring_t * tcouple_array)
 
 void vTempReading(void * pvParameters)
 {
+	uint8_t temp[2];
 	Temp_monitoring_t * p_tcouple = (Temp_monitoring_t *) pvParameters;
 	while(1)
 	{
@@ -337,13 +350,23 @@ void vTempReading(void * pvParameters)
 }
 
 // Flow monitoring
+void LB_Init_Flow_Monitoring(Flow_monitoring_t * flow_sensor_array)
+{
+	(flow_sensor_array + 0)->htim = &htim2;
+	(flow_sensor_array + 0)->pulse_counter = 0;
+	(flow_sensor_array + 0)->flow_rate = 0;
+
+	(flow_sensor_array + 1)->htim = &htim3;
+	(flow_sensor_array + 1)->pulse_counter = 0;
+	(flow_sensor_array + 1)->flow_rate = 0;
+}
+
 void vFlowReading(void * pvParameters)
 {
-	uint16_t pulse_counter;		// TODO: solve the problem with counter
+	Flow_monitoring_t * p_flow_sensor = (Flow_monitoring_t *) pvParameters;
 	while(1)
 	{
-		osMessageQueueGet(pulses_hot_water_queue_id, &pulse_counter, NULL, osWaitForever);
-		flow_rate = (float) pulse_counter / FLOW_RATE_COEFFICIENT;
+		p_flow_sensor->flow_rate = (float) p_flow_sensor->pulse_counter / FLOW_RATE_COEFFICIENT;
 		osDelay(pdMS_TO_TICKS(111UL));
 	}
 }
@@ -361,18 +384,13 @@ void vHumidReading(void * pvParameters)
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 {
     if (TIM2 == htim->Instance) {
-    	my_counter++;
-    	osMessageQueuePut(pulses_hot_water_queue_id, &my_counter, 0, 0);
+    	Liquid_flow_sensor[0].pulse_counter++;
+    }
+    if (TIM3 == htim->Instance) {
+    	Liquid_flow_sensor[1].pulse_counter++;
     }
 }
 
-//void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
-//{
-//
-//	if (TIM10 == htim->Instance)
-//	{
-//		my_counter = 0;
-//	}
 //}
 /* USER CODE END 4 */
 
@@ -395,7 +413,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   /* USER CODE BEGIN Callback 1 */
 	if (TIM10 == htim->Instance)
 	{
-		my_counter = 0;		// TODO: solve the problem with counter
+    	Liquid_flow_sensor[0].pulse_counter = 0;
+    	Liquid_flow_sensor[1].pulse_counter = 0;
 	}
   /* USER CODE END Callback 1 */
 }
