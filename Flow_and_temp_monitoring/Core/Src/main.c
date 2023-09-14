@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
+#include "fatfs.h"
 #include "i2c.h"
 #include "spi.h"
 #include "tim.h"
@@ -29,6 +30,10 @@
 // Humidity sensor
 #include "bme280_add.h"
 
+// SD CARD
+#include "fatfs_sd.h"
+#include "string.h"
+#include "stdio.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -46,9 +51,18 @@ typedef struct temperature_monitoring {
 // Flow monitoring
 typedef struct flow_monitoring {
 	TIM_HandleTypeDef *htim;
-	uint16_t pulse_counter;
+	volatile uint16_t pulse_counter;
 	float flow_rate;
 } Flow_monitoring_t;
+
+// SD CARD
+typedef struct sd_card_writing {
+	char * file_name;
+	uint16_t measurement_number;
+	Temp_monitoring_t * temp_array;
+	Flow_monitoring_t * flow_array;
+	struct bme280_data * humid_array;
+} SD_card_writing_t;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -57,8 +71,11 @@ typedef struct flow_monitoring {
 #define THERMOCOUPLES_NUMBER 4
 
 // Flow monitoring
-#define LIQUID_FLOW_SENSOR_NUMBER 2
+#define LIQUID_FLOW_SENSOR_NUMBER 2			// 0 - hot, 1 - cold
 #define FLOW_RATE_COEFFICIENT 5.5
+
+// SD CARD
+#define MAX_LEN 37
 
 // CMSIS-RTOS2
 #define STACK_SIZE_NORMAL 512
@@ -117,12 +134,16 @@ const osThreadAttr_t FlowCold_attr = {
 const osThreadAttr_t Humid_attr = {
 		.name = "HumidityReading_thread",
 		.stack_size = STACK_SIZE_NORMAL,
-		.priority = osPriorityBelowNormal1
+		.priority = osPriorityNormal
+};
+
+const osThreadAttr_t SD_card_attr = {
+		.name = "SD_card_writing_thread",
+		.stack_size = STACK_SIZE_NORMAL,
+		.priority = osPriorityNormal
 };
 
 // Temperature monitoring
-//uint16_t Temperature[4];
-//float Cels[4], Cels_filtered[4];
 Temp_monitoring_t Thermocouple[THERMOCOUPLES_NUMBER];
 
 // Flow monitoring
@@ -132,6 +153,10 @@ Flow_monitoring_t Liquid_flow_sensor[LIQUID_FLOW_SENSOR_NUMBER];
 struct bme280_dev bme280_sens_dev;
 struct bme280_data bme280_sens_data;
 //struct bme280_data bme280_sens_logging_data;
+
+// SD CARD
+extern volatile uint8_t FatFsCnt;
+SD_card_writing_t SD_card_data;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -148,6 +173,11 @@ void vFlowReading(void * pvParameters);
 
 // Temperature, humidity and pressure measurement
 void vHumidReading(void * pvParameters);
+
+// SD CARD
+extern void SDTimer_Handler(void);
+void LB_Init_SD_Card(SD_card_writing_t * p_SD_card_data_type, Temp_monitoring_t * p_temp, Flow_monitoring_t * p_flow, struct bme280_data * p_humid);
+void vUpdateLogs(void * pvParameters);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -187,7 +217,9 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM10_Init();
   MX_I2C1_Init();
+  MX_SPI2_Init();
   MX_TIM3_Init();
+  MX_FATFS_Init();
   /* USER CODE BEGIN 2 */
 
   // The initialization of temperature monitoring
@@ -198,6 +230,9 @@ int main(void)
 
   // The initialization of humidity sensor
   BME280_init(&bme280_sens_dev);
+
+  // The initialization of SD card data type
+  LB_Init_SD_Card(&SD_card_data, Thermocouple, Liquid_flow_sensor, &bme280_sens_data);
 
   // The initialization of timers
   HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1);
@@ -224,6 +259,8 @@ int main(void)
 
   // Temperature, humidity and pressure measurement
   osThreadNew(vHumidReading, NULL, &Humid_attr);	// TODO: A humidity reading issue to be solved.
+
+//  osThreadNew(vUpdateLogs, &SD_card_data, &SD_card_attr);
   // SAVE THIS CODE END
 
   /* Start scheduler */
@@ -330,7 +367,7 @@ void vTempReading(void * pvParameters)
 		HAL_GPIO_WritePin(p_tcouple->CS_GPIOx, p_tcouple->CS_GPIO_Pin, GPIO_PIN_SET);
 
 //		OPTION 1
-//		osSemaphoreRelease(spi_sem_id);
+		osSemaphoreRelease(spi_sem_id);
 
 		/* Temperature Conversion */
 		p_tcouple->Temperature = temp[1];
@@ -343,9 +380,9 @@ void vTempReading(void * pvParameters)
 		p_tcouple->Celsius_filtered = (1 - 0.2) * p_tcouple->Celsius_filtered + 0.2 * p_tcouple->Celsius;
 
 //		OPTION 2
-		osSemaphoreRelease(spi_sem_id);
+//		osSemaphoreRelease(spi_sem_id);
 
-		osDelay(pdMS_TO_TICKS(250UL));
+		osDelay(pdMS_TO_TICKS(333UL));
 	}
 }
 
@@ -376,8 +413,79 @@ void vHumidReading(void * pvParameters)
 {
 	while(1)
 	{
+		osSemaphoreAcquire(spi_sem_id, osWaitForever);
 		BME280_read_data(&bme280_sens_dev, &bme280_sens_data);
+		osSemaphoreRelease(spi_sem_id);
+//		osDelay(pdMS_TO_TICKS(500UL));
 		osDelay(pdMS_TO_TICKS(444UL));
+	}
+}
+
+// SD CARD
+void LB_Init_SD_Card(SD_card_writing_t * p_SD_card_data_type, Temp_monitoring_t * p_temp, Flow_monitoring_t * p_flow, struct bme280_data * p_humid)
+{
+	p_SD_card_data_type->file_name = "Measurement";
+	p_SD_card_data_type->measurement_number = 1;
+	p_SD_card_data_type->temp_array = p_temp;
+	p_SD_card_data_type->flow_array = p_flow;
+	p_SD_card_data_type->humid_array = p_humid;
+}
+
+void vUpdateLogs(void * pvParameters)
+{
+	FATFS fs;
+	FIL fil;
+	FRESULT fresult;
+	uint8_t message[MAX_LEN];
+
+	SD_card_writing_t * p_sd_card_data_type = (SD_card_writing_t *) pvParameters;
+
+	while(1)
+	{
+		// Mount SD Card
+		if ( FR_DISK_ERR == (fresult = f_mount(&fs, "", 1)) )
+		{
+			FATFS_UnLinkDriver(USERPath);
+			MX_FATFS_Init();
+			if ( FR_OK != (fresult = f_mount(&fs, "", 1)) )
+			{
+				fresult = f_mount(NULL, "", 1);
+				osDelay(pdMS_TO_TICKS(1000UL));
+//				return fresult;
+			}
+		}
+
+		// Open the file with write access
+		if ( FR_OK != (fresult = f_open(&fil, p_sd_card_data_type->file_name, FA_OPEN_EXISTING | FA_WRITE)) )
+		{
+			if ( FR_OK != (fresult = f_open(&fil, p_sd_card_data_type->file_name, FA_OPEN_ALWAYS | FA_WRITE)) )
+			{
+				// Unmount SD CARD
+				fresult = f_mount(NULL, "", 1);
+				osDelay(pdMS_TO_TICKS(1000UL));
+//				return fresult;
+			}
+			fresult = f_puts("Date,Time,Temperature [C],Humidity [%], Pressure [mmHg]\r\n\r\n", &fil);
+		}
+
+		// Move offset to the end of file
+		fresult = f_lseek(&fil, /*fil.fptr*/ f_size(&fil));
+
+		// an action
+		p_sd_card_data_type->measurement_number++;
+
+		/*** Updating an existing file ***/
+		// Write a string to the file
+		sprintf( (char *) message, "%u\r\n",  p_sd_card_data_type->measurement_number);
+		fresult = f_puts((TCHAR *) message, &fil);
+
+		// Close the file
+		f_close(&fil);
+
+		// Unmount SD CARD
+		fresult = f_mount(NULL, "", 1);
+
+		osDelay(pdMS_TO_TICKS(1000UL));
 	}
 }
 
@@ -405,7 +513,12 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
-
+//	FatFsCnt++;
+//	if (FatFsCnt >= 10)
+//	{
+//		FatFsCnt = 0;
+//		SDTimer_Handler();
+//	}
   /* USER CODE END Callback 0 */
   if (htim->Instance == TIM1) {
     HAL_IncTick();
