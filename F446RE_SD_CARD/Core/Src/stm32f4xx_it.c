@@ -41,7 +41,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
-extern uint8_t writing_is_active;
+volatile extern uint8_t writing_is_active;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
