@@ -31,6 +31,11 @@
 #include "event_groups.h"
 
 #include "File_Handling_RTOS.h"
+
+#include "bme280_add.h"
+#include "bme280_defs.h"
+#include "bme280.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -48,6 +53,8 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+I2C_HandleTypeDef hi2c1;
+
 SPI_HandleTypeDef hspi2;
 
 TIM_HandleTypeDef htim1;
@@ -60,6 +67,10 @@ const osThreadAttr_t defaultTask_attributes = {
 };
 /* USER CODE BEGIN PV */
 uint16_t DATA_VAL = 0;
+
+// Temperature, humidity and pressure measurement
+struct bme280_dev bme280_sens_dev;
+struct bme280_data bme280_sens_data;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -67,6 +78,7 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_SPI2_Init(void);
 static void MX_TIM1_Init(void);
+static void MX_I2C1_Init(void);
 
 /* USER CODE BEGIN PFP */
 
@@ -115,7 +127,11 @@ int main(void)
   MX_SPI2_Init();
   MX_TIM1_Init();
   MX_FATFS_Init();
+  MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
+  // The initialization of humidity sensor
+  BME280_init(&bme280_sens_dev);
+
   Mount_SD("/");
 //  Format_SD();
   Create_File("RTOS.txt");
@@ -124,8 +140,8 @@ int main(void)
 
   DATA_Sem = xSemaphoreCreateBinary();
 
-  xTaskCreate(DATA_Task, "DATA", 128, NULL, 1, &DATA_Task_Handler);
-  xTaskCreate(SDCARD_Task, "SD", 128, NULL, 2, &SDCARD_Task_Handler);
+  xTaskCreate(DATA_Task, "DATA", 512, NULL, 1, &DATA_Task_Handler);
+  xTaskCreate(SDCARD_Task, "SD", 512, NULL, 2, &SDCARD_Task_Handler);
 
   HAL_TIM_Base_Start_IT(&htim1); // periodic delay timer
 
@@ -189,6 +205,40 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief I2C1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2C1_Init(void)
+{
+
+  /* USER CODE BEGIN I2C1_Init 0 */
+
+  /* USER CODE END I2C1_Init 0 */
+
+  /* USER CODE BEGIN I2C1_Init 1 */
+
+  /* USER CODE END I2C1_Init 1 */
+  hi2c1.Instance = I2C1;
+  hi2c1.Init.ClockSpeed = 100000;
+  hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
+  hi2c1.Init.OwnAddress1 = 0;
+  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c1.Init.OwnAddress2 = 0;
+  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2C1_Init 2 */
+
+  /* USER CODE END I2C1_Init 2 */
+
 }
 
 /**
@@ -325,6 +375,7 @@ void DATA_Task (void *argument)
 	{
 		xSemaphoreTake(DATA_Sem, 2500);
 		DATA_VAL += 3;
+		BME280_read_data(&bme280_sens_dev, &bme280_sens_data);
 
 		vTaskDelay(500);
 	}
@@ -337,7 +388,7 @@ void SDCARD_Task (void *argument)
 	while(1)
 	{
 		char * buffer = pvPortMalloc(50 * sizeof(char));
-		sprintf(buffer, "%d. %u\r\n", index, DATA_VAL);
+		sprintf(buffer, "%03d. %03u - %ld.%02ld, %lu.%03lu, %lu\r\n", index, DATA_VAL, (bme280_sens_data.temperature / 100UL), (bme280_sens_data.temperature % 100UL), (bme280_sens_data.humidity / 1024UL), ((bme280_sens_data.humidity % 1024UL) / 10), (bme280_sens_data.pressure / 100));
 		Mount_SD("/");
 		Update_File("RTOS.txt", buffer);
 		vPortFree(buffer);
