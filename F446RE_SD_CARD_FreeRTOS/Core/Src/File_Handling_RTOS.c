@@ -212,11 +212,25 @@ FRESULT Update_File (char *name, char *data)
 {
 	/**** check whether the file exists or not ****/
 	fresult = f_stat (name, &fno);
-	if (fresult != FR_OK)
+//	if (fresult != FR_OK)
+//	{
+//	    return fresult;
+//	}
+	if (FR_NO_FILE == fresult)
 	{
-	    return fresult;
-	}
+		 /* Create a new file with read write access and open it */
+		fresult = f_open(&fil, name, FA_CREATE_ALWAYS|FA_READ|FA_WRITE);
+	    if (fresult != FR_OK)
+	    {
+	        return fresult;
+	    }
 
+	    /* Writing text */
+	    fresult = f_write(&fil, data, strlen (data), &bw);
+
+	    /* Close file */
+	    fresult = f_close(&fil);
+	}
 	else
 	{
 		 /* Create a file with read write access and open it */

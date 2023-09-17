@@ -97,6 +97,7 @@ struct bme280_dev bme280_sens_dev;
 struct bme280_data bme280_sens_data;
 
 // SD CARD
+bool measurement_is_active = false;
 Time_t Measurement_Time;
 uint8_t Measurement_Counter = 0;
 const char * file_name = "Meas";
@@ -383,13 +384,13 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(SPI2_CS_GPIO_Port, SPI2_CS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GREEN_LED_GPIO_Port, GREEN_LED_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : B1_Pin */
-  GPIO_InitStruct.Pin = B1_Pin;
+  /*Configure GPIO pin : BLUE_BUTTON_Pin */
+  GPIO_InitStruct.Pin = BLUE_BUTTON_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(BLUE_BUTTON_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : SPI2_CS_Pin */
   GPIO_InitStruct.Pin = SPI2_CS_Pin;
@@ -398,12 +399,16 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(SPI2_CS_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : LD2_Pin */
-  GPIO_InitStruct.Pin = LD2_Pin;
+  /*Configure GPIO pin : GREEN_LED_Pin */
+  GPIO_InitStruct.Pin = GREEN_LED_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GREEN_LED_GPIO_Port, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
 }
 
@@ -440,17 +445,39 @@ void SDCARD_Task (void *argument)
 	FRESULT f_result;
 	while(1)
 	{
-
 		LB_Times_Ticking(&Measurement_Time);
-		char * buffer = pvPortMalloc(MAX_LEN * sizeof(char));
-		sprintf(buffer, "%02u:%02u - %.1f, %.1f, %.1f, %.1f, %.1f, %.1f, %lu.%02lu\r\n", Measurement_Time.time[1], Measurement_Time.time[0], TC_1, TC_2, TC_3, TC_4, Flow_Rate_1, Flow_Rate_2, (bme280_sens_data.humidity / 1024UL), ((bme280_sens_data.humidity % 1024UL) / 9));
+		if (measurement_is_active)
+		{
+			HAL_GPIO_WritePin(GREEN_LED_GPIO_Port, GREEN_LED_Pin, GPIO_PIN_SET);
+			char * buffer = pvPortMalloc(MAX_LEN * sizeof(char));
+			sprintf(buffer, "%02u:%02u - %.1f, %.1f, %.1f, %.1f, %.1f, %.1f, %lu.%02lu\r\n", Measurement_Time.time[1], Measurement_Time.time[0], TC_1, TC_2, TC_3, TC_4, Flow_Rate_1, Flow_Rate_2, (bme280_sens_data.humidity / 1024UL), ((bme280_sens_data.humidity % 1024UL) / 9));
 
-		f_result = Mount_SD("/");
-		Update_File("RTOS.txt", buffer);
-		vPortFree(buffer);
-		Unmount_SD("/");
+			f_result = Mount_SD("/");
+			Update_File("RTOS.txt", buffer);
+			vPortFree(buffer);
+			Unmount_SD("/");
+		}
+		else
+		{
+			HAL_GPIO_WritePin(GREEN_LED_GPIO_Port, GREEN_LED_Pin, GPIO_PIN_RESET);
+		}
 
 		vTaskDelay(1000);
+	}
+}
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+	if (BLUE_BUTTON_Pin == GPIO_Pin)
+	{
+		if (false == measurement_is_active)
+		{
+			measurement_is_active = true;
+		}
+		else
+		{
+			measurement_is_active = false;
+		}
 	}
 }
 /* USER CODE END 4 */
