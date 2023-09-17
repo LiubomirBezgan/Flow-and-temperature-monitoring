@@ -388,7 +388,7 @@ void SDCARD_Task (void *argument)
 	while(1)
 	{
 		char * buffer = pvPortMalloc(50 * sizeof(char));
-		sprintf(buffer, "%03d. %03u - %ld.%02ld, %lu.%03lu, %lu\r\n", index, DATA_VAL, (bme280_sens_data.temperature / 100UL), (bme280_sens_data.temperature % 100UL), (bme280_sens_data.humidity / 1024UL), ((bme280_sens_data.humidity % 1024UL) / 10), (bme280_sens_data.pressure / 100));
+		sprintf(buffer, "%03d. %03u - %ld.%02ld, %lu.%02lu, %lu\r\n", index, DATA_VAL, (bme280_sens_data.temperature / 100UL), (bme280_sens_data.temperature % 100UL), (bme280_sens_data.humidity / 1024UL), ((bme280_sens_data.humidity % 1024UL) / 10), (bme280_sens_data.pressure / 100));
 		Mount_SD("/");
 		Update_File("RTOS.txt", buffer);
 		vPortFree(buffer);
