@@ -30,11 +30,21 @@
 #include "semphr.h"
 #include "event_groups.h"
 
+// RTOS
 #include "File_Handling_RTOS.h"
 
+// Temperature, humidity and pressure measurement
 #include "bme280_add.h"
 #include "bme280_defs.h"
 #include "bme280.h"
+
+// Time
+#include "LB_time.h"
+
+// Standard
+//#include "stdio.h"
+//#include "string.h"
+#include "stdbool.h"
 
 /* USER CODE END Includes */
 
@@ -45,6 +55,11 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+// Flow monitoring
+#define FLOW_RATE_COEFFICIENT 5.5
+
+// SD CARD
+#define MAX_LEN 50
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -59,18 +74,34 @@ SPI_HandleTypeDef hspi2;
 
 TIM_HandleTypeDef htim1;
 
-/* Definitions for defaultTask */
-const osThreadAttr_t defaultTask_attributes = {
-  .name = "defaultTask",
-  .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
-};
+///* Definitions for defaultTask */
+//const osThreadAttr_t defaultTask_attributes = {
+//  .name = "defaultTask",
+//  .stack_size = 128 * 4,
+//  .priority = (osPriority_t) osPriorityNormal,
+//};
 /* USER CODE BEGIN PV */
-uint16_t DATA_VAL = 0;
+uint32_t IdleCounter = 0;
+// Temperature monitoring
+float TC_1;
+float TC_2;
+float TC_3;
+float TC_4;
+
+// Flow monitoring
+float Flow_Rate_1;
+float Flow_Rate_2;
 
 // Temperature, humidity and pressure measurement
 struct bme280_dev bme280_sens_dev;
 struct bme280_data bme280_sens_data;
+
+// SD CARD
+Time_t Measurement_Time;
+uint8_t Measurement_Counter = 0;
+const char * file_name = "Meas";
+const char * file_extension = ".csv";
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -86,11 +117,13 @@ static void MX_I2C1_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+xTaskHandle IDLE_Task_Handler;
 xTaskHandle DATA_Task_Handler;
 xTaskHandle SDCARD_Task_Handler;
 
 xSemaphoreHandle DATA_Sem;
 
+void IDLE_Task (void *argument);
 void DATA_Task (void *argument);
 void SDCARD_Task (void *argument);
 
@@ -129,19 +162,25 @@ int main(void)
   MX_FATFS_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
+  // Initializations of time
+  LB_Init_Time(&Measurement_Time);
+
   // The initialization of humidity sensor
   BME280_init(&bme280_sens_dev);
 
+  // SD card mounting
   Mount_SD("/");
 //  Format_SD();
   Create_File("RTOS.txt");
   Unmount_SD("/");
 
-
+  // FreeRTOS
   DATA_Sem = xSemaphoreCreateBinary();
 
-  xTaskCreate(DATA_Task, "DATA", 512, NULL, 1, &DATA_Task_Handler);
-  xTaskCreate(SDCARD_Task, "SD", 512, NULL, 2, &SDCARD_Task_Handler);
+  xTaskCreate(IDLE_Task, "IDLE", 128, NULL, 1, &IDLE_Task_Handler);
+  xTaskCreate(DATA_Task, "DATA", 512, NULL, 2, &DATA_Task_Handler);
+  xTaskCreate(SDCARD_Task, "SD", 512, NULL, 3, &SDCARD_Task_Handler);
+
 
   HAL_TIM_Base_Start_IT(&htim1); // periodic delay timer
 
@@ -369,12 +408,27 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void DATA_Task (void *argument)
+void IDLE_Task (void *argument)
 {
 	while(1)
 	{
+		IdleCounter++;
+	}
+}
+
+void DATA_Task (void *argument)
+{
+	TC_1 = 14.4;
+	TC_2 = 25.6;
+	TC_3 = 34.2;
+	TC_4 = 41.7;
+
+	Flow_Rate_1 = 15.6;
+	Flow_Rate_2 = 28.5;
+
+	while(1)
+	{
 		xSemaphoreTake(DATA_Sem, 2500);
-		DATA_VAL += 3;
 		BME280_read_data(&bme280_sens_dev, &bme280_sens_data);
 
 		vTaskDelay(500);
@@ -383,18 +437,18 @@ void DATA_Task (void *argument)
 
 void SDCARD_Task (void *argument)
 {
-	int index = 1;
-
+	FRESULT f_result;
 	while(1)
 	{
-		char * buffer = pvPortMalloc(50 * sizeof(char));
-		sprintf(buffer, "%03d. %03u - %ld.%02ld, %lu.%02lu, %lu\r\n", index, DATA_VAL, (bme280_sens_data.temperature / 100UL), (bme280_sens_data.temperature % 100UL), (bme280_sens_data.humidity / 1024UL), ((bme280_sens_data.humidity % 1024UL) / 10), (bme280_sens_data.pressure / 100));
-		Mount_SD("/");
+
+		LB_Times_Ticking(&Measurement_Time);
+		char * buffer = pvPortMalloc(MAX_LEN * sizeof(char));
+		sprintf(buffer, "%02u:%02u - %.1f, %.1f, %.1f, %.1f, %.1f, %.1f, %lu.%02lu\r\n", Measurement_Time.time[1], Measurement_Time.time[0], TC_1, TC_2, TC_3, TC_4, Flow_Rate_1, Flow_Rate_2, (bme280_sens_data.humidity / 1024UL), ((bme280_sens_data.humidity % 1024UL) / 9));
+
+		f_result = Mount_SD("/");
 		Update_File("RTOS.txt", buffer);
 		vPortFree(buffer);
 		Unmount_SD("/");
-
-		index++;
 
 		vTaskDelay(1000);
 	}
