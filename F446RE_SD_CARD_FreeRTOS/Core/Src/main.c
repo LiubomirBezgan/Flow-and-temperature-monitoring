@@ -42,8 +42,6 @@
 #include "LB_time.h"
 
 // Standard
-//#include "stdio.h"
-//#include "string.h"
 #include "stdbool.h"
 
 /* USER CODE END Includes */
@@ -57,9 +55,6 @@
 /* USER CODE BEGIN PD */
 // Flow monitoring
 #define FLOW_RATE_COEFFICIENT 5.5
-
-// SD CARD
-#define MAX_DATA_LEN 50
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -83,6 +78,8 @@ float TC_3;
 float TC_4;
 
 // Flow monitoring
+uint16_t Flow1_pulse_counter = 0;
+uint16_t Flow2_pulse_counter = 0;
 float Flow_Rate_1;
 float Flow_Rate_2;
 
@@ -117,14 +114,18 @@ static void MX_I2C1_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 xTaskHandle IDLE_Task_Handler;
-xTaskHandle DATA_Task_Handler;
+xTaskHandle HUMID_Task_Handler;
 xTaskHandle SDCARD_Task_Handler;
+xTaskHandle FLOW1_Task_Handler;
+xTaskHandle FLOW2_Task_Handler;
 
-xSemaphoreHandle DATA_Sem;
+xSemaphoreHandle HUMID_Sem;
 
 void IDLE_Task (void *argument);
-void DATA_Task (void *argument);
+void HUMID_Task (void *argument);
 void SDCARD_Task (void *argument);
+void FLOW1_Task (void *argument);
+void FLOW2_Task (void *argument);
 
 /* USER CODE END 0 */
 
@@ -168,11 +169,13 @@ int main(void)
   BME280_init(&bme280_sens_dev);
 
   // FreeRTOS
-  DATA_Sem = xSemaphoreCreateBinary();
+  HUMID_Sem = xSemaphoreCreateBinary();
 
   xTaskCreate(IDLE_Task, "IDLE", 128, NULL, 1, &IDLE_Task_Handler);
-  xTaskCreate(DATA_Task, "DATA", 512, NULL, 2, &DATA_Task_Handler);
+  xTaskCreate(HUMID_Task, "HUMID", 512, NULL, 2, &HUMID_Task_Handler);
   xTaskCreate(SDCARD_Task, "SD", 512, NULL, 3, &SDCARD_Task_Handler);
+  xTaskCreate(FLOW1_Task, "FLOW", 128, NULL, 2, &FLOW1_Task_Handler);
+  xTaskCreate(FLOW2_Task, "FLOW", 128, NULL, 2, &FLOW2_Task_Handler);
 
   // TIM1
   HAL_TIM_Base_Start_IT(&htim1); // periodic delay timer
@@ -414,7 +417,7 @@ void IDLE_Task (void *argument)
 	}
 }
 
-void DATA_Task (void *argument)
+void HUMID_Task (void *argument)
 {
 	TC_1 = 14.4;
 	TC_2 = 25.6;
@@ -426,7 +429,7 @@ void DATA_Task (void *argument)
 
 	while(1)
 	{
-		xSemaphoreTake(DATA_Sem, 2500);
+		xSemaphoreTake(HUMID_Sem, 2500);
 		BME280_read_data(&bme280_sens_dev, &bme280_sens_data);
 
 		vTaskDelay(500UL);
@@ -459,6 +462,26 @@ void SDCARD_Task (void *argument)
 			LB_Init_Time(&Measurement_Time);
 		}
 
+		vTaskDelay(1000UL);
+	}
+}
+
+void FLOW1_Task (void *argument)
+{
+	while(1)
+	{
+		Flow_Rate_1 = (float) Flow1_pulse_counter / FLOW_RATE_COEFFICIENT;
+		Flow1_pulse_counter = 0;
+		vTaskDelay(1000UL);
+	}
+}
+
+void FLOW2_Task (void *argument)
+{
+	while(1)
+	{
+		Flow_Rate_2 = (float) Flow2_pulse_counter / FLOW_RATE_COEFFICIENT;
+		Flow2_pulse_counter = 0;
 		vTaskDelay(1000UL);
 	}
 }
@@ -500,7 +523,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		 context switch is required. */
 		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 
-		xSemaphoreGiveFromISR(DATA_Sem, &xHigherPriorityTaskWoken);  // ISR SAFE VERSION
+		xSemaphoreGiveFromISR(HUMID_Sem, &xHigherPriorityTaskWoken);  // ISR SAFE VERSION
 
 		/* Pass the xHigherPriorityTaskWoken value into portEND_SWITCHING_ISR(). If
 		 xHigherPriorityTaskWoken was set to pdTRUE inside xSemaphoreGiveFromISR()

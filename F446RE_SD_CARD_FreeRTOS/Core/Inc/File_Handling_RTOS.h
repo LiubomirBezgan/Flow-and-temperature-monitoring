@@ -15,6 +15,7 @@
 #include "stdbool.h"
 
 #define FILE_NAME_LEN 12
+#define MAX_DATA_LEN 50
 
 typedef struct f_counter {
 	uint8_t file_counter;
