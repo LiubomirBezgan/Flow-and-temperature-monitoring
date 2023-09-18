@@ -9,9 +9,6 @@
 #include "stm32f4xx_hal.h"
 
 
-//extern UART_HandleTypeDef huart2;
-//#define UART &huart2
-
 
 
 /* =============================>>>>>>>> NO CHANGES AFTER THIS LINE =====================================>>>>>>> */
@@ -27,8 +24,6 @@ FATFS *pfs;
 DWORD fre_clust;
 uint32_t total, free_space;
 
-//uint8_t testOK = 0;
-
 
 FRESULT Mount_SD (const TCHAR* path)
 {
@@ -40,7 +35,7 @@ FRESULT Mount_SD (const TCHAR* path)
 		MX_FATFS_Init();
 		if ( FR_OK != (mounting_fresult = f_mount(&fs, "", 1)) )
 		{
-			mounting_fresult = f_mount(NULL, "", 1);
+			f_mount(NULL, "", 1);
 			return mounting_fresult;
 		}
 	}
@@ -208,18 +203,31 @@ FRESULT Create_File (char *name)
     return fresult;
 }
 
-FRESULT Update_File (char *name, char *data)
+FRESULT Update_File (const char *f_name, File_counter_t * p_counter, const char * f_extension, char *data)
 {
+	char file_name_buffer[FILE_NAME_LEN];
+
 	/**** check whether the file exists or not ****/
-	fresult = f_stat (name, &fno);
-//	if (fresult != FR_OK)
-//	{
-//	    return fresult;
-//	}
+	if (false == p_counter->isfound)
+	{
+		p_counter->file_counter = 0;
+	do {
+		(p_counter->file_counter)++;
+		sprintf(file_name_buffer, "%s%03u%s", f_name, p_counter->file_counter, f_extension);
+	}
+	while ( FR_OK == (fresult = f_stat (file_name_buffer, &fno)) );
+	p_counter->isfound = true;
+	fresult = f_stat (file_name_buffer, &fno);
+	}
+	else
+	{
+		sprintf(file_name_buffer, "%s%03u%s", f_name, p_counter->file_counter, f_extension);
+	}
+
 	if (FR_NO_FILE == fresult)
 	{
 		 /* Create a new file with read write access and open it */
-		fresult = f_open(&fil, name, FA_CREATE_ALWAYS|FA_READ|FA_WRITE);
+		fresult = f_open(&fil, file_name_buffer, FA_CREATE_ALWAYS|FA_READ|FA_WRITE);
 	    if (fresult != FR_OK)
 	    {
 	        return fresult;
@@ -234,7 +242,7 @@ FRESULT Update_File (char *name, char *data)
 	else
 	{
 		 /* Create a file with read write access and open it */
-	    fresult = f_open(&fil, name, FA_OPEN_APPEND | FA_WRITE);
+	    fresult = f_open(&fil, file_name_buffer, FA_OPEN_APPEND | FA_WRITE);
 	    if (fresult != FR_OK)
 	    {
 	        return fresult;

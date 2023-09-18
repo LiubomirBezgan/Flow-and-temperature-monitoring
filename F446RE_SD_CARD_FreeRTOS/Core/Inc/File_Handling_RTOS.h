@@ -12,7 +12,14 @@
 #include "string.h"
 #include "stdio.h"
 #include "fatfs_sd.h"
+#include "stdbool.h"
 
+#define FILE_NAME_LEN 12
+
+typedef struct f_counter {
+	uint8_t file_counter;
+	bool isfound;
+} File_counter_t;
 
 /* mounts the sd card*/
 FRESULT Mount_SD (const TCHAR* path);
@@ -53,7 +60,7 @@ void Check_SD_Space (void);
 /* updates the file. write pointer is set to the end of the file
  * @ name : is the path to the file
  */
-FRESULT Update_File (char *name, char *data);
+FRESULT Update_File (const char *f_name, File_counter_t * counter, const char * f_extension, char *data);
 
 
 

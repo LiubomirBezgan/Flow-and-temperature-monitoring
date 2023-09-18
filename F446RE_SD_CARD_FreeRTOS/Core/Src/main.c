@@ -59,7 +59,7 @@
 #define FLOW_RATE_COEFFICIENT 5.5
 
 // SD CARD
-#define MAX_LEN 50
+#define MAX_DATA_LEN 50
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -74,12 +74,6 @@ SPI_HandleTypeDef hspi2;
 
 TIM_HandleTypeDef htim1;
 
-///* Definitions for defaultTask */
-//const osThreadAttr_t defaultTask_attributes = {
-//  .name = "defaultTask",
-//  .stack_size = 128 * 4,
-//  .priority = (osPriority_t) osPriorityNormal,
-//};
 /* USER CODE BEGIN PV */
 uint32_t IdleCounter = 0;
 // Temperature monitoring
@@ -99,7 +93,11 @@ struct bme280_data bme280_sens_data;
 // SD CARD
 bool measurement_is_active = false;
 Time_t Measurement_Time;
-uint8_t Measurement_Counter = 0;
+File_counter_t Measurement_Counter =
+		{
+				0,
+				false
+		};
 const char * file_name = "Meas";
 const char * file_extension = ".csv";
 
@@ -169,12 +167,6 @@ int main(void)
   // The initialization of humidity sensor
   BME280_init(&bme280_sens_dev);
 
-  // SD card mounting
-  Mount_SD("/");
-//  Format_SD();
-  Create_File("RTOS.txt");
-  Unmount_SD("/");
-
   // FreeRTOS
   DATA_Sem = xSemaphoreCreateBinary();
 
@@ -182,9 +174,10 @@ int main(void)
   xTaskCreate(DATA_Task, "DATA", 512, NULL, 2, &DATA_Task_Handler);
   xTaskCreate(SDCARD_Task, "SD", 512, NULL, 3, &SDCARD_Task_Handler);
 
-
+  // TIM1
   HAL_TIM_Base_Start_IT(&htim1); // periodic delay timer
 
+  // FreeRTOS
   vTaskStartScheduler();
   /* USER CODE END 2 */
 
@@ -436,33 +429,37 @@ void DATA_Task (void *argument)
 		xSemaphoreTake(DATA_Sem, 2500);
 		BME280_read_data(&bme280_sens_dev, &bme280_sens_data);
 
-		vTaskDelay(500);
+		vTaskDelay(500UL);
 	}
 }
 
 void SDCARD_Task (void *argument)
 {
 	FRESULT f_result;
+
 	while(1)
 	{
-		LB_Times_Ticking(&Measurement_Time);
 		if (measurement_is_active)
 		{
 			HAL_GPIO_WritePin(GREEN_LED_GPIO_Port, GREEN_LED_Pin, GPIO_PIN_SET);
-			char * buffer = pvPortMalloc(MAX_LEN * sizeof(char));
-			sprintf(buffer, "%02u:%02u - %.1f, %.1f, %.1f, %.1f, %.1f, %.1f, %lu.%02lu\r\n", Measurement_Time.time[1], Measurement_Time.time[0], TC_1, TC_2, TC_3, TC_4, Flow_Rate_1, Flow_Rate_2, (bme280_sens_data.humidity / 1024UL), ((bme280_sens_data.humidity % 1024UL) / 9));
 
-			f_result = Mount_SD("/");
-			Update_File("RTOS.txt", buffer);
-			vPortFree(buffer);
-			Unmount_SD("/");
+			if (FR_OK == (f_result = Mount_SD("/")))
+			{
+				LB_Times_Ticking(&Measurement_Time);
+				char * buffer = pvPortMalloc(MAX_DATA_LEN * sizeof(char));
+				sprintf( buffer, "%02u:%02u - %.1f, %.1f, %.1f, %.1f, %.1f, %.1f, %.2f\r\n", Measurement_Time.time[1], Measurement_Time.time[0], TC_1, TC_2, TC_3, TC_4, Flow_Rate_1, Flow_Rate_2, ( (float) bme280_sens_data.humidity / 1024UL));
+				Update_File(file_name, &Measurement_Counter, file_extension, buffer);
+				vPortFree(buffer);
+				Unmount_SD("/");
+			}
 		}
 		else
 		{
 			HAL_GPIO_WritePin(GREEN_LED_GPIO_Port, GREEN_LED_Pin, GPIO_PIN_RESET);
+			LB_Init_Time(&Measurement_Time);
 		}
 
-		vTaskDelay(1000);
+		vTaskDelay(1000UL);
 	}
 }
 
@@ -477,6 +474,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 		else
 		{
 			measurement_is_active = false;
+			Measurement_Counter.isfound = false;
 		}
 	}
 }
