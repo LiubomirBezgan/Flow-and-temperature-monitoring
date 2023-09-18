@@ -55,6 +55,10 @@
 /* USER CODE BEGIN PD */
 // Flow monitoring
 #define FLOW_RATE_COEFFICIENT 5.5
+
+// FreeRTOS
+#define STACK_SIZE_MEDIUM 512
+#define STACK_SIZE_SMALL 128
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -193,21 +197,21 @@ int main(void)
   BME280_init(&bme280_sens_dev);
 
   // FreeRTOS
-  xTaskCreate(IDLE_Task, "IDLE", 128, NULL, 1, &IDLE_Task_Handler);
+  xTaskCreate(IDLE_Task, "IDLE", STACK_SIZE_SMALL, NULL, 1, &IDLE_Task_Handler);
 
-  xTaskCreate(HUMID_Task, "HUMID", 512, NULL, 2, &HUMID_Task_Handler);
+  xTaskCreate(HUMID_Task, "HUMID", STACK_SIZE_MEDIUM, NULL, 2, &HUMID_Task_Handler);
   HUMID_Sem = xSemaphoreCreateBinary();
 
-  xTaskCreate(FLOW1_Task, "FLOW1", 128, NULL, 2, &FLOW1_Task_Handler);
-  xTaskCreate(FLOW2_Task, "FLOW2", 128, NULL, 2, &FLOW2_Task_Handler);
+  xTaskCreate(FLOW1_Task, "FLOW1", STACK_SIZE_SMALL, NULL, 2, &FLOW1_Task_Handler);
+  xTaskCreate(FLOW2_Task, "FLOW2", STACK_SIZE_SMALL, NULL, 2, &FLOW2_Task_Handler);
 
-  xTaskCreate(TEMP1_Task, "TEMP1", 512, NULL, 2, &TEMP1_Task_Handler);
-  xTaskCreate(TEMP2_Task, "TEMP2", 512, NULL, 2, &TEMP2_Task_Handler);
-  xTaskCreate(TEMP3_Task, "TEMP3", 512, NULL, 2, &TEMP3_Task_Handler);
-  xTaskCreate(TEMP4_Task, "TEMP4", 512, NULL, 2, &TEMP4_Task_Handler);
+  xTaskCreate(TEMP1_Task, "TEMP1", STACK_SIZE_MEDIUM, NULL, 2, &TEMP1_Task_Handler);
+  xTaskCreate(TEMP2_Task, "TEMP2", STACK_SIZE_MEDIUM, NULL, 2, &TEMP2_Task_Handler);
+  xTaskCreate(TEMP3_Task, "TEMP3", STACK_SIZE_MEDIUM, NULL, 2, &TEMP3_Task_Handler);
+  xTaskCreate(TEMP4_Task, "TEMP4", STACK_SIZE_MEDIUM, NULL, 2, &TEMP4_Task_Handler);
   TEMP_Sem = xSemaphoreCreateBinary();
 
-  xTaskCreate(SDCARD_Task, "SD", 512, NULL, 3, &SDCARD_Task_Handler);
+  xTaskCreate(SDCARD_Task, "SD", STACK_SIZE_MEDIUM, NULL, 3, &SDCARD_Task_Handler);
 
   // TIM1
   HAL_TIM_Base_Start_IT(&htim1); // periodic delay timer
