@@ -302,9 +302,9 @@ void HAL_TIM_Base_MspInit(TIM_HandleTypeDef* htim_base)
     /* Peripheral clock enable */
     __HAL_RCC_TIM2_CLK_ENABLE();
 
-    __HAL_RCC_GPIOA_CLK_ENABLE();
+    __HAL_RCC_GPIOB_CLK_ENABLE();
     /**TIM2 GPIO Configuration
-    PA15     ------> TIM2_CH1
+    PB8     ------> TIM2_CH1
     */
     GPIO_InitStruct.Pin = FLOW1_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -380,7 +380,7 @@ void HAL_TIM_Base_MspDeInit(TIM_HandleTypeDef* htim_base)
     __HAL_RCC_TIM2_CLK_DISABLE();
 
     /**TIM2 GPIO Configuration
-    PA15     ------> TIM2_CH1
+    PB8     ------> TIM2_CH1
     */
     HAL_GPIO_DeInit(FLOW1_GPIO_Port, FLOW1_Pin);
 
