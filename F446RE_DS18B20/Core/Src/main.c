@@ -32,6 +32,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define BYTE 8
+#define SCRATCHPAD_MEMORY 9
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -104,6 +105,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start(&htim7);
 
+  // ROM code reading
   HAL_StatusTypeDef rc = wire_reset();
 
   wire_write(0x33);
@@ -115,8 +117,21 @@ int main(void)
   {
 	  rom_code[i] = wire_read();
   }
+  // CRC verification
+  uint8_t crc = wire_crc(rom_code, BYTE - 1);
 
-  uint8_t crc = wire_crc(rom_code, 7);
+  // Scratchpad reading
+  wire_reset();
+  wire_write(0xcc);
+  wire_write(0xbe);
+
+  uint8_t scratchpad[SCRATCHPAD_MEMORY];
+  for (i = 0; i < SCRATCHPAD_MEMORY; i++)
+  {
+	  scratchpad[i] = wire_read();
+  }
+
+  crc = wire_crc(scratchpad, SCRATCHPAD_MEMORY - 1);
 
   /* USER CODE END 2 */
 
