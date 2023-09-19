@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "ds18b20.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -31,8 +31,6 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define BYTE 8
-#define SCRATCHPAD_MEMORY 9
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -44,7 +42,9 @@
 TIM_HandleTypeDef htim7;
 
 /* USER CODE BEGIN PV */
-
+float temp;
+HAL_StatusTypeDef status;
+uint8_t ds1[DS18B20_ROM_CODE_SIZE];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -103,63 +103,33 @@ int main(void)
   MX_GPIO_Init();
   MX_TIM7_Init();
   /* USER CODE BEGIN 2 */
-  HAL_TIM_Base_Start(&htim7);
-
-  // ROM code reading
-  HAL_StatusTypeDef rc = wire_reset();
-
-  wire_write(0x33);
-
-  int i;
-
-  uint8_t rom_code[BYTE];
-  for (i = 0; i < BYTE; i++)
+  if ( HAL_OK != ds18b20_init() )
   {
-	  rom_code[i] = wire_read();
-  }
-  // CRC verification
-  uint8_t crc = wire_crc(rom_code, BYTE - 1);
-
-  // Scratchpad reading
-  wire_reset();
-  wire_write(0xcc);
-  wire_write(0xbe);
-
-  uint8_t scratchpad[SCRATCHPAD_MEMORY];
-  for (i = 0; i < SCRATCHPAD_MEMORY; i++)
-  {
-	  scratchpad[i] = wire_read();
+	  Error_Handler();
   }
 
-  // CRC verification
-  crc = wire_crc(scratchpad, SCRATCHPAD_MEMORY - 1);
-
-  // Temperature convertion
-  wire_reset();
-  wire_write(0xcc);
-  wire_write(0x44);
-
-  HAL_Delay(750);
-
-  wire_reset();
-  wire_write(0xcc);
-  wire_write(0xbe);
-
-  for (i = 0; i < SCRATCHPAD_MEMORY; i++)
+  if ( HAL_OK != ds18b20_read_address(ds1) )
   {
-	  scratchpad[i] = wire_read();
+	  Error_Handler();
   }
-
-  // CRC verification
-  crc = wire_crc(scratchpad, SCRATCHPAD_MEMORY - 1);
-
-
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  ds18b20_start_measure(NULL);
+	  HAL_Delay(750);
+
+	  temp = ds18b20_get_temp(NULL);
+	  if (80.0f <= temp )
+	  {
+		  status = HAL_ERROR;
+	  }
+	  else
+	  {
+		  status = HAL_OK;
+	  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -279,120 +249,6 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-	/* bit-banging */
-void delay_us(uint32_t us)
-{
-	__HAL_TIM_SET_COUNTER(&htim7, 0);
-	while (__HAL_TIM_GET_COUNTER(&htim7) < us) {}
-}
-
-HAL_StatusTypeDef wire_reset(void)
-{
-	int rc = 1;
-
-	HAL_GPIO_WritePin(DS18B20_GPIO_Port, DS18B20_Pin, GPIO_PIN_RESET);
-	delay_us(480);
-	HAL_GPIO_WritePin(DS18B20_GPIO_Port, DS18B20_Pin, GPIO_PIN_SET);
-	delay_us(70);
-	rc = HAL_GPIO_ReadPin(DS18B20_GPIO_Port, DS18B20_Pin);
-	delay_us(410);
-
-	if (0 == rc)
-	{
-		return HAL_OK;
-	}
-	else
-	{
-		return HAL_ERROR;
-	}
-}
-
-void write_bit(int value)
-{
-	if (value)
-	{
-		HAL_GPIO_WritePin(DS18B20_GPIO_Port, DS18B20_Pin, GPIO_PIN_RESET);
-		delay_us(6);
-		HAL_GPIO_WritePin(DS18B20_GPIO_Port, DS18B20_Pin, GPIO_PIN_SET);
-		delay_us(64);
-	}
-	else
-	{
-		HAL_GPIO_WritePin(DS18B20_GPIO_Port, DS18B20_Pin, GPIO_PIN_RESET);
-		delay_us(60);
-		HAL_GPIO_WritePin(DS18B20_GPIO_Port, DS18B20_Pin, GPIO_PIN_SET);
-		delay_us(10);
-	}
-}
-
-int read_bit(void)
-{
-	int rc;
-
-	HAL_GPIO_WritePin(DS18B20_GPIO_Port, DS18B20_Pin, GPIO_PIN_RESET);
-	delay_us(6);
-	HAL_GPIO_WritePin(DS18B20_GPIO_Port, DS18B20_Pin, GPIO_PIN_SET);
-	delay_us(9);
-	rc = HAL_GPIO_ReadPin(DS18B20_GPIO_Port, DS18B20_Pin);
-	delay_us(55);
-
-	return rc;
-
-}
-
-void wire_write(uint8_t byte)
-{
-	int i;
-	for (i = 0; i < BYTE; i++)
-	{
-		write_bit(byte & 0x01);
-		byte >>= 1;
-	}
-}
-
-uint8_t wire_read(void)
-{
-	uint8_t value = 0;
-	int i;
-	for (i = 0; i < BYTE; i++)
-	{
-		value >>= 1;
-		if (read_bit())
-		{
-			value |= 0x80;
-		}
-	}
-	return value;
-}
-
-// CRC
-uint8_t byte_crc(uint8_t crc, uint8_t byte)
-{
-	int i;
-	for (i = 0; i < BYTE; i++)
-	{
-		uint8_t b = crc ^ byte;
-		crc >>= 1;
-		if (b & 0x01)
-		{
-			crc ^= 0x8c;
-		}
-		byte >>= 1;
-	}
-	return crc;
-}
-
-uint8_t wire_crc (const uint8_t * data, int len)
-{
-	int i;
-	uint8_t crc = 0;
-
-	for (i = 0; i < len; i++)
-	{
-		crc = byte_crc(crc, data[i]);
-	}
-	return crc;
-}
 /* USER CODE END 4 */
 
 /**
