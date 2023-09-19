@@ -704,12 +704,13 @@ void TEMP1_Task (void *argument)
 		Celsius = (float) Temperature * 0.25f;
 
 		/* IIR filter */
-		TC_1 = (1.0f - 0.2f) * TC_2 + 0.2f * Celsius;
+		TC_1 = (1.0f - 0.2f) * TC_1 + 0.2f * Celsius;
 
 //		OPTION 2
 //		xSemaphoreGive(TEMP_Sem);
 
 		osDelay(pdMS_TO_TICKS(333UL));
+//		vTaskDelay(333UL);
 	}
 }
 
@@ -746,6 +747,7 @@ void TEMP2_Task (void *argument)
 //		xSemaphoreGive(TEMP_Sem);
 
 		osDelay(pdMS_TO_TICKS(333UL));
+//		vTaskDelay(333UL);
 	}
 }
 
@@ -776,12 +778,13 @@ void TEMP3_Task (void *argument)
 		Celsius = (float) Temperature * 0.25f;
 
 		/* IIR filter */
-		TC_3 = (1.0f - 0.2f) * TC_2 + 0.2f * Celsius;
+		TC_3 = (1.0f - 0.2f) * TC_3 + 0.2f * Celsius;
 
 //		OPTION 2
 //		xSemaphoreGive(TEMP_Sem);
 
 		osDelay(pdMS_TO_TICKS(333UL));
+//		vTaskDelay(333UL);
 	}
 }
 
@@ -812,12 +815,13 @@ void TEMP4_Task (void *argument)
 		Celsius = (float) Temperature * 0.25f;
 
 		/* IIR filter */
-		TC_4 = (1.0f - 0.2f) * TC_2 + 0.2f * Celsius;
+		TC_4 = (1.0f - 0.2f) * TC_4 + 0.2f * Celsius;
 
 //		OPTION 2
 //		xSemaphoreGive(TEMP_Sem);
 
 		osDelay(pdMS_TO_TICKS(333UL));
+//		vTaskDelay(333UL);
 	}
 }
 
