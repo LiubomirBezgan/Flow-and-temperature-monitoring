@@ -51,7 +51,7 @@ HAL_StatusTypeDef wire_reset(void)
 
 	set_baudrate(9600);
 	HAL_UART_Transmit(&huart3, &data_out, 1, HAL_MAX_DELAY);
-	HAL_UART_Receive(&huart3, &data_in, 1, HAL_MAX_DELAY);
+	HAL_UART_Receive(&huart3, &data_in, 1, HAL_MAX_DELAY);	// zla wartość 0xE0
 	set_baudrate(115200);
 
 	if (0xF0 != data_in)
