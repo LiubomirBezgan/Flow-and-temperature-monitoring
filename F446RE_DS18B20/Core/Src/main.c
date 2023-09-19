@@ -131,7 +131,28 @@ int main(void)
 	  scratchpad[i] = wire_read();
   }
 
+  // CRC verification
   crc = wire_crc(scratchpad, SCRATCHPAD_MEMORY - 1);
+
+  // Temperature convertion
+  wire_reset();
+  wire_write(0xcc);
+  wire_write(0x44);
+
+  HAL_Delay(750);
+
+  wire_reset();
+  wire_write(0xcc);
+  wire_write(0xbe);
+
+  for (i = 0; i < SCRATCHPAD_MEMORY; i++)
+  {
+	  scratchpad[i] = wire_read();
+  }
+
+  // CRC verification
+  crc = wire_crc(scratchpad, SCRATCHPAD_MEMORY - 1);
+
 
   /* USER CODE END 2 */
 
