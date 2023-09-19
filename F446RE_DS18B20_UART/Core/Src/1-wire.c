@@ -8,20 +8,20 @@
 #include "1-wire.h"
 #include "main.h"
 
-extern TIM_HandleTypeDef htim7;
+//extern TIM_HandleTypeDef htim7;
 extern UART_HandleTypeDef huart6;
 
-HAL_StatusTypeDef wire_init(void)
-{
-  return HAL_TIM_Base_Start(&htim7);
-}
-
-	/* bit-banging */
-static void delay_us(uint32_t us)
-{
-	__HAL_TIM_SET_COUNTER(&htim7, 0);
-	while (__HAL_TIM_GET_COUNTER(&htim7) < us) {}
-}
+//HAL_StatusTypeDef wire_init(void)
+//{
+//  return HAL_TIM_Base_Start(&htim7);
+//}
+//
+//	/* bit-banging */
+//static void delay_us(uint32_t us)
+//{
+//	__HAL_TIM_SET_COUNTER(&htim7, 0);
+//	while (__HAL_TIM_GET_COUNTER(&htim7) < us) {}
+//}
 
 static void set_baudrate(uint32_t baudrate)
 {
