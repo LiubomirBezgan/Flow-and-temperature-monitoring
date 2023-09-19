@@ -8,32 +8,20 @@
 #include "1-wire.h"
 #include "main.h"
 
-//extern TIM_HandleTypeDef htim7;
-extern UART_HandleTypeDef huart6;
+extern UART_HandleTypeDef huart3;
 
-//HAL_StatusTypeDef wire_init(void)
-//{
-//  return HAL_TIM_Base_Start(&htim7);
-//}
-//
-//	/* bit-banging */
-//static void delay_us(uint32_t us)
-//{
-//	__HAL_TIM_SET_COUNTER(&htim7, 0);
-//	while (__HAL_TIM_GET_COUNTER(&htim7) < us) {}
-//}
 
 static void set_baudrate(uint32_t baudrate)
 {
-	  huart6.Instance = USART6;
-	  huart6.Init.BaudRate = baudrate;
-	  huart6.Init.WordLength = UART_WORDLENGTH_8B;
-	  huart6.Init.StopBits = UART_STOPBITS_1;
-	  huart6.Init.Parity = UART_PARITY_NONE;
-	  huart6.Init.Mode = UART_MODE_TX_RX;
-	  huart6.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-	  huart6.Init.OverSampling = UART_OVERSAMPLING_16;
-	  if (HAL_UART_Init(&huart6) != HAL_OK)
+//	  huart3.Instance = USART3;
+	  huart3.Init.BaudRate = baudrate;
+//	  huart3.Init.WordLength = UART_WORDLENGTH_8B;
+//	  huart3.Init.StopBits = UART_STOPBITS_1;
+//	  huart3.Init.Parity = UART_PARITY_NONE;
+//	  huart3.Init.Mode = UART_MODE_TX_RX;
+//	  huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+//	  huart3.Init.OverSampling = UART_OVERSAMPLING_16;
+	  if (HAL_HalfDuplex_Init(&huart3) != HAL_OK)
 	  {
 	    Error_Handler();
 	  }
@@ -62,8 +50,8 @@ HAL_StatusTypeDef wire_reset(void)
 	uint8_t data_in = 0;
 
 	set_baudrate(9600);
-	HAL_UART_Transmit(&huart6, &data_out, 1, HAL_MAX_DELAY);
-	HAL_UART_Receive(&huart6, &data_in, 1, HAL_MAX_DELAY);
+	HAL_UART_Transmit(&huart3, &data_out, 1, HAL_MAX_DELAY);
+	HAL_UART_Receive(&huart3, &data_in, 1, HAL_MAX_DELAY);
 	set_baudrate(115200);
 
 	if (0xF0 != data_in)
@@ -81,12 +69,12 @@ static void write_bit(int value)
 	if (value)
 	{
 		uint8_t data_out = 0xFF;
-		HAL_UART_Transmit(&huart6, &data_out, 1, HAL_MAX_DELAY);
+		HAL_UART_Transmit(&huart3, &data_out, 1, HAL_MAX_DELAY);
 	}
 	else
 	{
 		uint8_t data_out = 0x0;
-		HAL_UART_Transmit(&huart6, &data_out, 1, HAL_MAX_DELAY);
+		HAL_UART_Transmit(&huart3, &data_out, 1, HAL_MAX_DELAY);
 	}
 }
 
@@ -94,8 +82,8 @@ static int read_bit(void)
 {
 	uint8_t data_out = 0xFF;
 	uint8_t data_in = 0x0;
-	HAL_UART_Transmit(&huart6, &data_out, 1, HAL_MAX_DELAY);
-	HAL_UART_Receive(&huart6, &data_in, 1, HAL_MAX_DELAY);
+	HAL_UART_Transmit(&huart3, &data_out, 1, HAL_MAX_DELAY);
+	HAL_UART_Receive(&huart3, &data_in, 1, HAL_MAX_DELAY);
 	return data_in & 0x01;
 
 }

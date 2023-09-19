@@ -618,14 +618,6 @@ void IDLE_Task (void *argument)
 
 void HUMID_Task (void *argument)
 {
-	TC_1 = 14.4;
-	TC_2 = 25.6;
-	TC_3 = 34.2;
-	TC_4 = 41.7;
-
-	Flow_Rate_1 = 15.6;
-	Flow_Rate_2 = 28.5;
-
 	while(1)
 	{
 		xSemaphoreTake(HUMID_Sem, 2500);
@@ -649,7 +641,7 @@ void SDCARD_Task (void *argument)
 			{
 				LB_Times_Ticking(&Measurement_Time);
 				char * buffer = pvPortMalloc(MAX_DATA_LEN * sizeof(char));
-				sprintf( buffer, "%02u:%02u,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.2f\r\n", Measurement_Time.time[1], Measurement_Time.time[0], TC_1, TC_2, TC_3, TC_4, Flow_Rate_1, Flow_Rate_2, ( (float) bme280_sens_data.humidity / 1024UL));
+				sprintf( buffer, "%02u:%02u,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.2f\r\n", Measurement_Time.time[1], Measurement_Time.time[0], TC_1, TC_2, TC_3, TC_4, Flow_Rate_1, Flow_Rate_2, ( (float) bme280_sens_data.humidity / 1024.0f));
 				Update_File(file_name, &Measurement_Counter, file_extension, buffer);
 				vPortFree(buffer);
 				Unmount_SD("/");
@@ -693,10 +685,8 @@ void TEMP1_Task (void *argument)
 	uint16_t Temperature;
 	float Celsius;
 
-
 	while(1)
 	{
-//		osSemaphoreAcquire(spi_sem_id, osWaitForever);
 		xSemaphoreTake(TEMP_Sem, 2500);
 
 		/* SPI */
@@ -706,7 +696,6 @@ void TEMP1_Task (void *argument)
 		HAL_GPIO_WritePin(CS_T1_GPIO_Port, CS_T1_Pin, GPIO_PIN_SET);
 
 //		OPTION 1
-//		osSemaphoreRelease(spi_sem_id);
 		xSemaphoreGive(TEMP_Sem);
 
 		/* Temperature Conversion */
@@ -714,13 +703,12 @@ void TEMP1_Task (void *argument)
 		Temperature = Temperature << 8;
 		Temperature = Temperature + temp[0];
 		Temperature = Temperature >> 3;
-		Celsius = (float) Temperature * 0.25;
+		Celsius = (float) Temperature * 0.25f;
 
 		/* IIR filter */
-		TC_1 = (1 - 0.2) * TC_1 + 0.2 * Celsius;
+		TC_1 = (1.0f - 0.2f) * TC_2 + 0.2f * Celsius;
 
 //		OPTION 2
-//		osSemaphoreRelease(spi_sem_id);
 //		xSemaphoreGive(TEMP_Sem);
 
 		osDelay(pdMS_TO_TICKS(333UL));
@@ -733,10 +721,8 @@ void TEMP2_Task (void *argument)
 	uint16_t Temperature;
 	float Celsius;
 
-
 	while(1)
 	{
-//		osSemaphoreAcquire(spi_sem_id, osWaitForever);
 		xSemaphoreTake(TEMP_Sem, 2500);
 
 		/* SPI */
@@ -746,7 +732,6 @@ void TEMP2_Task (void *argument)
 		HAL_GPIO_WritePin(CS_T2_GPIO_Port, CS_T2_Pin, GPIO_PIN_SET);
 
 //		OPTION 1
-//		osSemaphoreRelease(spi_sem_id);
 		xSemaphoreGive(TEMP_Sem);
 
 		/* Temperature Conversion */
@@ -754,13 +739,12 @@ void TEMP2_Task (void *argument)
 		Temperature = Temperature << 8;
 		Temperature = Temperature + temp[0];
 		Temperature = Temperature >> 3;
-		Celsius = (float) Temperature * 0.25;
+		Celsius = (float) Temperature * 0.25f;
 
 		/* IIR filter */
-		TC_2 = (1 - 0.2) * TC_2 + 0.2 * Celsius;
+		TC_2 = (1.0f - 0.2f) * TC_2 + 0.2f * Celsius;
 
 //		OPTION 2
-//		osSemaphoreRelease(spi_sem_id);
 //		xSemaphoreGive(TEMP_Sem);
 
 		osDelay(pdMS_TO_TICKS(333UL));
@@ -773,10 +757,8 @@ void TEMP3_Task (void *argument)
 	uint16_t Temperature;
 	float Celsius;
 
-
 	while(1)
 	{
-//		osSemaphoreAcquire(spi_sem_id, osWaitForever);
 		xSemaphoreTake(TEMP_Sem, 2500);
 
 		/* SPI */
@@ -786,7 +768,6 @@ void TEMP3_Task (void *argument)
 		HAL_GPIO_WritePin(CS_T3_GPIO_Port, CS_T3_Pin, GPIO_PIN_SET);
 
 //		OPTION 1
-//		osSemaphoreRelease(spi_sem_id);
 		xSemaphoreGive(TEMP_Sem);
 
 		/* Temperature Conversion */
@@ -794,13 +775,12 @@ void TEMP3_Task (void *argument)
 		Temperature = Temperature << 8;
 		Temperature = Temperature + temp[0];
 		Temperature = Temperature >> 3;
-		Celsius = (float) Temperature * 0.25;
+		Celsius = (float) Temperature * 0.25f;
 
 		/* IIR filter */
-		TC_3 = (1 - 0.2) * TC_3 + 0.2 * Celsius;
+		TC_3 = (1.0f - 0.2f) * TC_2 + 0.2f * Celsius;
 
 //		OPTION 2
-//		osSemaphoreRelease(spi_sem_id);
 //		xSemaphoreGive(TEMP_Sem);
 
 		osDelay(pdMS_TO_TICKS(333UL));
@@ -813,10 +793,8 @@ void TEMP4_Task (void *argument)
 	uint16_t Temperature;
 	float Celsius;
 
-
 	while(1)
 	{
-//		osSemaphoreAcquire(spi_sem_id, osWaitForever);
 		xSemaphoreTake(TEMP_Sem, 2500);
 
 		/* SPI */
@@ -826,7 +804,6 @@ void TEMP4_Task (void *argument)
 		HAL_GPIO_WritePin(CS_T4_GPIO_Port, CS_T4_Pin, GPIO_PIN_SET);
 
 //		OPTION 1
-//		osSemaphoreRelease(spi_sem_id);
 		xSemaphoreGive(TEMP_Sem);
 
 		/* Temperature Conversion */
@@ -834,13 +811,12 @@ void TEMP4_Task (void *argument)
 		Temperature = Temperature << 8;
 		Temperature = Temperature + temp[0];
 		Temperature = Temperature >> 3;
-		Celsius = (float) Temperature * 0.25;
+		Celsius = (float) Temperature * 0.25f;
 
 		/* IIR filter */
-		TC_4 = (1 - 0.2) * TC_4 + 0.2 * Celsius;
+		TC_4 = (1.0f - 0.2f) * TC_2 + 0.2f * Celsius;
 
 //		OPTION 2
-//		osSemaphoreRelease(spi_sem_id);
 //		xSemaphoreGive(TEMP_Sem);
 
 		osDelay(pdMS_TO_TICKS(333UL));

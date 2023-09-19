@@ -9,11 +9,6 @@
 #include "ds18b20.h"
 #include "1-wire.h"
 
-//HAL_StatusTypeDef ds18b20_init(void)
-//{
-//  return wire_init();
-//}
-
 HAL_StatusTypeDef ds18b20_read_address(uint8_t* rom_code)
 {
 	int i;
