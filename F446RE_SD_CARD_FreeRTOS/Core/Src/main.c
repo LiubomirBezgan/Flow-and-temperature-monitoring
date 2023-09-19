@@ -25,10 +25,10 @@
 /* USER CODE BEGIN Includes */
 #include "FreeRTOS.h"
 #include "task.h"
-#include "timers.h"
-#include "queue.h"
+//#include "timers.h"
+//#include "queue.h"
 #include "semphr.h"
-#include "event_groups.h"
+//#include "event_groups.h"
 
 // RTOS
 #include "File_Handling_RTOS.h"
@@ -139,8 +139,6 @@ xTaskHandle TEMP4_Task_Handler;
 xSemaphoreHandle TEMP_Sem;
 
 xTaskHandle SDCARD_Task_Handler;
-
-
 
 void IDLE_Task (void *argument);
 void HUMID_Task (void *argument);
