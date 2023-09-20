@@ -18,17 +18,13 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-//#include "cmsis_os.h"
 #include "fatfs.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "FreeRTOS.h"
 #include "task.h"
-//#include "timers.h"
-//#include "queue.h"
 #include "semphr.h"
-//#include "event_groups.h"
 
 // RTOS
 #include "File_Handling_RTOS.h"
@@ -76,12 +72,14 @@ TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 /* USER CODE BEGIN PV */
+// FreeRTOS
 uint32_t IdleCounter = 0;
+
 // Temperature monitoring
-float TC_1;
-float TC_2;
-float TC_3;
-float TC_4;
+float TC_1 = 20.0f;
+float TC_2 = 20.0f;
+float TC_3 = 20.0f;
+float TC_4 = 20.0f;
 
 // Flow monitoring
 uint16_t Flow1_pulse_counter = 0;
@@ -188,12 +186,6 @@ int main(void)
   MX_TIM3_Init();
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
-  // Initializations of time
-  LB_Init_Time(&Measurement_Time);
-
-  // The initialization of humidity sensor
-  BME280_init(&bme280_sens_dev);
-
   // FreeRTOS
   xTaskCreate(IDLE_Task, "IDLE", STACK_SIZE_SMALL, NULL, 1, &IDLE_Task_Handler);
 
@@ -616,6 +608,9 @@ void IDLE_Task (void *argument)
 
 void HUMID_Task (void *argument)
 {
+	// The initialization of humidity sensor
+	BME280_init(&bme280_sens_dev);
+
 	while(1)
 	{
 		xSemaphoreTake(HUMID_Sem, 2500);
@@ -628,6 +623,9 @@ void HUMID_Task (void *argument)
 void SDCARD_Task (void *argument)
 {
 	FRESULT f_result;
+
+	// Initializations of time
+	LB_Init_Time(&Measurement_Time);
 
 	while(1)
 	{
@@ -709,8 +707,8 @@ void TEMP1_Task (void *argument)
 //		OPTION 2
 //		xSemaphoreGive(TEMP_Sem);
 
-		osDelay(pdMS_TO_TICKS(333UL));
-//		vTaskDelay(333UL);
+//		osDelay(pdMS_TO_TICKS(333UL));
+		vTaskDelay(333UL);
 	}
 }
 
@@ -746,8 +744,8 @@ void TEMP2_Task (void *argument)
 //		OPTION 2
 //		xSemaphoreGive(TEMP_Sem);
 
-		osDelay(pdMS_TO_TICKS(333UL));
-//		vTaskDelay(333UL);
+//		osDelay(pdMS_TO_TICKS(333UL));
+		vTaskDelay(333UL);
 	}
 }
 
@@ -783,8 +781,8 @@ void TEMP3_Task (void *argument)
 //		OPTION 2
 //		xSemaphoreGive(TEMP_Sem);
 
-		osDelay(pdMS_TO_TICKS(333UL));
-//		vTaskDelay(333UL);
+//		osDelay(pdMS_TO_TICKS(333UL));
+		vTaskDelay(333UL);
 	}
 }
 
@@ -820,8 +818,8 @@ void TEMP4_Task (void *argument)
 //		OPTION 2
 //		xSemaphoreGive(TEMP_Sem);
 
-		osDelay(pdMS_TO_TICKS(333UL));
-//		vTaskDelay(333UL);
+//		osDelay(pdMS_TO_TICKS(333UL));
+		vTaskDelay(333UL);
 	}
 }
 
