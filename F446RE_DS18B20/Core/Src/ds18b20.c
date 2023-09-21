@@ -73,7 +73,7 @@ HAL_StatusTypeDef ds18b20_start_measure(const uint8_t * rom_code)
 	return send_cmd(rom_code, DS18B20_CONVERT_T);
 }
 
-static HAL_StatusTypeDef ds18b20_read_scratchpad(const uint8_t * rom_code, uint8_t * scratchpad)
+/*static*/ HAL_StatusTypeDef ds18b20_read_scratchpad(const uint8_t * rom_code, uint8_t * scratchpad)
 {
 	int i;
 	uint8_t crc;
@@ -114,4 +114,48 @@ float ds18b20_get_temp(const uint8_t * rom_code)
 	memcpy(&temp, &scratchpad[0], sizeof(temp));
 	result = temp / 16.0f;
 	return result;
+}
+
+HAL_StatusTypeDef ds18b20_write_scratchpad(const uint8_t * rom_code, uint8_t resolution)
+{
+	int i;
+	uint8_t scratchpad[DS18B20_SCRATCHPAD_SIZE];
+
+	if ( HAL_OK != ds18b20_read_scratchpad(rom_code, scratchpad) )
+	{
+		return HAL_ERROR;
+	}
+
+	if (12 == resolution)
+	{
+		scratchpad[4] = 0x7F;	// 0x7F = 0111 1111
+	}
+	else if (11 == resolution)
+	{
+		scratchpad[4] = 0xBF;	// 0x7F = 0101 1111
+	}
+	else if (10 == resolution)
+	{
+		scratchpad[4] = 0x3F;	// 0x3F = 0011 1111
+	}
+	else if (9 == resolution)
+	{
+		scratchpad[4] = 0x1F;	// 0x1F = 0001 1111
+	}
+	else
+	{
+		return HAL_ERROR;
+	}
+
+	if (HAL_OK != send_cmd(rom_code, DS18B20_WRITE_SCRATCHPAD))
+	{
+		return HAL_ERROR;
+	}
+
+	for (i = 2; i < 5; i++)
+	{
+		wire_write(scratchpad[i]);
+	}
+
+	return HAL_OK;
 }

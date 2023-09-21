@@ -22,6 +22,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "ds18b20.h"
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -41,16 +42,27 @@
 /* Private variables ---------------------------------------------------------*/
 TIM_HandleTypeDef htim7;
 
+UART_HandleTypeDef huart2;
+
 /* USER CODE BEGIN PV */
 float temp;
 HAL_StatusTypeDef status;
-uint8_t ds1[DS18B20_ROM_CODE_SIZE];
+
+// PARTI
+//uint8_t ds1[DS18B20_ROM_CODE_SIZE];
+
+// PART II
+const uint8_t ds1[] = {0x28, 0x26, 0xc3, 0x57, 0x4, 0xe1, 0x3c, 0x1a};
+const uint8_t ds2[] = {0x28, 0xf2, 0xa, 0x49, 0xf6, 0xf1, 0x3c, 0xd0};
+uint8_t my_scratchpad_before[DS18B20_SCRATCHPAD_SIZE];
+uint8_t my_scratchpad_after[DS18B20_SCRATCHPAD_SIZE];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_TIM7_Init(void);
+static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 // bit-banging
@@ -102,34 +114,103 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_TIM7_Init();
+  MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
   if ( HAL_OK != ds18b20_init() )
   {
 	  Error_Handler();
   }
 
-  if ( HAL_OK != ds18b20_read_address(ds1) )
-  {
-	  Error_Handler();
-  }
+  // PART I
+//  if ( HAL_OK != ds18b20_read_address(ds1) )
+//  {
+//	  Error_Handler();
+//  }
+
+
+  // PART III
+//  if ( HAL_OK != ds18b20_read_scratchpad(NULL, my_scratchpad_before) )
+//  {
+//	  Error_Handler();
+//  }
+//
+//
+//  if ( HAL_OK != ds18b20_write_scratchpad(NULL, 12) )
+//  {
+//	  Error_Handler();
+//  }
+//  if ( HAL_OK != ds18b20_read_scratchpad(NULL, my_scratchpad_after) )
+//  {
+//	  Error_Handler();
+//  }
+
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  ds18b20_start_measure(NULL);
+	  // PART I
+//	  ds18b20_start_measure(NULL);
+//	  HAL_Delay(750);
+//
+//	  temp = ds18b20_get_temp(NULL);
+//	  if (80.0f <= temp )
+//	  {
+//		  printf("Sensor error...\n");
+//		  status = HAL_ERROR;
+//	  }
+//	  else
+//	  {
+//		  printf("T1 = %.1f*C\n", temp);
+//		  status = HAL_OK;
+//	  }
+
+	  // PART II
+	  ds18b20_start_measure(ds1);
+	  ds18b20_start_measure(ds2);
 	  HAL_Delay(750);
 
-	  temp = ds18b20_get_temp(NULL);
+	  temp = ds18b20_get_temp(ds1);
 	  if (80.0f <= temp )
 	  {
+		  printf("Sensor error...\n");
 		  status = HAL_ERROR;
 	  }
 	  else
 	  {
+		  printf("T1 = %.1f*C\n", temp);
 		  status = HAL_OK;
 	  }
+
+	  temp = ds18b20_get_temp(ds2);
+	  if (80.0f <= temp )
+	  {
+		  printf("Sensor error...\n");
+		  status = HAL_ERROR;
+	  }
+	  else
+	  {
+		  printf("T2 = %.1f*C\n", temp);
+		  status = HAL_OK;
+	  }
+
+	  // PART III
+//	  ds18b20_start_measure(NULL);
+//	  HAL_Delay(200);
+//
+//	  temp = ds18b20_get_temp(NULL);
+//	  if (80.0f <= temp )
+//	  {
+//		  printf("Sensor error...\n");
+//		  status = HAL_ERROR;
+//	  }
+//	  else
+//	  {
+//		  printf("T1 = %.1f*C\n", temp);
+//		  status = HAL_OK;
+//	  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -222,6 +303,39 @@ static void MX_TIM7_Init(void)
 }
 
 /**
+  * @brief USART2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART2_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART2_Init 0 */
+
+  /* USER CODE END USART2_Init 0 */
+
+  /* USER CODE BEGIN USART2_Init 1 */
+
+  /* USER CODE END USART2_Init 1 */
+  huart2.Instance = USART2;
+  huart2.Init.BaudRate = 115200;
+  huart2.Init.WordLength = UART_WORDLENGTH_8B;
+  huart2.Init.StopBits = UART_STOPBITS_1;
+  huart2.Init.Parity = UART_PARITY_NONE;
+  huart2.Init.Mode = UART_MODE_TX_RX;
+  huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart2.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART2_Init 2 */
+
+  /* USER CODE END USART2_Init 2 */
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -248,7 +362,16 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+int __io_putchar(int ch)
+{
+  if (ch == '\n') {
+    __io_putchar('\r');
+  }
 
+  HAL_UART_Transmit(&huart2, (uint8_t*)&ch, 1, HAL_MAX_DELAY);
+
+  return 1;
+}
 /* USER CODE END 4 */
 
 /**

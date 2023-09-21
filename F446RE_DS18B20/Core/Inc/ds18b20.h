@@ -19,12 +19,17 @@
 
 #define DS18B20_CONVERT_T          0x44
 #define DS18B20_READ_SCRATCHPAD    0xBE
+#define DS18B20_WRITE_SCRATCHPAD   0x4E
 
 HAL_StatusTypeDef ds18b20_init(void);
 
 HAL_StatusTypeDef ds18b20_read_address(uint8_t* rom_code);
 
 HAL_StatusTypeDef ds18b20_start_measure(const uint8_t* rom_code);
+
+HAL_StatusTypeDef ds18b20_read_scratchpad(const uint8_t * rom_code, uint8_t * scratchpad);	// Previously this function was static.
+
+HAL_StatusTypeDef ds18b20_write_scratchpad(const uint8_t * rom_code, uint8_t resolution);
 
 float ds18b20_get_temp(const uint8_t* rom_code);
 
