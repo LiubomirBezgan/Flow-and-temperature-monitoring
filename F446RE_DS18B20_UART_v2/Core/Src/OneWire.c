@@ -23,7 +23,7 @@ volatile uint16_t rc_buffer[5];
 extern UART_HandleTypeDef huart3;
 #define ow_uart huart3
 #define OW_USART USART3
-#define MAXDEVICES_ON_THE_BUS 1
+#define MAXDEVICES_ON_THE_BUS 4
 
 /*********************************************************************************************/
 float Temp[MAXDEVICES_ON_THE_BUS];

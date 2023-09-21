@@ -104,7 +104,10 @@ int main(void)
     /* USER CODE BEGIN 3 */
 	  get_Temperature();
 	  printf("T1 = %.1f*C\n", Temp[0]);
-	  HAL_Delay(1000);
+	  printf("T2 = %.1f*C\n", Temp[1]);
+	  printf("T3 = %.1f*C\n", Temp[2]);
+	  printf("T4 = %.1f*C\n", Temp[3]);
+	  HAL_Delay(4000);
   }
   /* USER CODE END 3 */
 }
