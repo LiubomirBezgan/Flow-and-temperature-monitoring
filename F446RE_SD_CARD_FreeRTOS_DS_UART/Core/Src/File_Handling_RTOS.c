@@ -234,7 +234,7 @@ FRESULT Update_File (const char *f_name, File_counter_t * p_counter, const char 
 	    }
 
 	    /* Writing the table header */
-	    const char * table_header = "Time,T1 [C],T2 [C],T3 [C],T4 [C],Flow1 [l/min],Flow2 [l/min],Humid [%]\r\n";
+	    const char * table_header = "Time [s],T1 [C],T2 [C],T3 [C],T4 [C],Flow1 [l/min],Flow2 [l/min],Humid [%]\r\n";
 	    fresult = f_write(&fil, table_header, strlen (table_header), &bw);
 
 	    /* Writing text */

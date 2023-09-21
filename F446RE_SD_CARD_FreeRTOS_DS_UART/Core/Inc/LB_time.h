@@ -19,7 +19,8 @@
 /* General type definitions --------------------------------------------------*/
 /* redefine Time_t as appropriate */
 typedef struct hh_mm_ss {
-	uint8_t time[UNITS];               // 2 - hours, 1 - minutes, 0 - seconds
+//	uint8_t time[UNITS];               // 2 - hours, 1 - minutes, 0 - seconds
+	uint16_t seconds;
 } Time_t;
 
 /* Function prototypes -------------------------------------------------------*/

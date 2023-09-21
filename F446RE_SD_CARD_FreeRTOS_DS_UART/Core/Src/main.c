@@ -26,6 +26,9 @@
 #include "task.h"
 #include "semphr.h"
 
+// User
+#include "for_Maciej.h"
+
 // RTOS
 #include "File_Handling_RTOS.h"
 
@@ -52,9 +55,6 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-// Flow monitoring
-#define FLOW_RATE_COEFFICIENT1 5.5
-#define FLOW_RATE_COEFFICIENT2 5.5
 
 // FreeRTOS
 #define STACK_SIZE_MEDIUM 512
@@ -612,7 +612,7 @@ void SDCARD_Task (void *argument)
 			{
 				LB_Times_Ticking(&Measurement_Time);
 				char * buffer = pvPortMalloc(MAX_DATA_LEN * sizeof(char));
-				sprintf( buffer, "%02u:%02u,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.2f\r\n", Measurement_Time.time[1], Measurement_Time.time[0], Temp[0], Temp[1], Temp[2], Temp[3], Flow_Rate_1, Flow_Rate_2, ( (float) bme280_sens_data.humidity / 1024.0f));
+				sprintf( buffer, "%u,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.2f\r\n", Measurement_Time.seconds, Temp[0], Temp[1], Temp[2], Temp[3], Flow_Rate_1, Flow_Rate_2, ( (float) bme280_sens_data.humidity / 1024.0f));
 				Update_File(file_name, &Measurement_Counter, file_extension, buffer);
 				vPortFree(buffer);
 				Unmount_SD("/");
@@ -684,7 +684,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
-	if (htim->Instance == TIM1)
+	if (TIM1 == htim->Instance)
 	{
 		// release the semaphore here
 		 /* The xHigherPriorityTaskWoken parameter must be initialized to pdFALSE as
