@@ -18,17 +18,13 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-//#include "cmsis_os.h"
 #include "fatfs.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "FreeRTOS.h"
 #include "task.h"
-//#include "timers.h"
-//#include "queue.h"
 #include "semphr.h"
-//#include "event_groups.h"
 
 // RTOS
 #include "File_Handling_RTOS.h"
@@ -57,7 +53,8 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 // Flow monitoring
-#define FLOW_RATE_COEFFICIENT 5.5
+#define FLOW_RATE_COEFFICIENT1 5.5
+#define FLOW_RATE_COEFFICIENT2 5.5
 
 // FreeRTOS
 #define STACK_SIZE_MEDIUM 512
@@ -81,14 +78,11 @@ TIM_HandleTypeDef htim3;
 
 UART_HandleTypeDef huart3;
 /* USER CODE BEGIN PV */
-uint32_t IdleCounter = 0;
-// Temperature monitoring
-float TC_1 = 0;
-float TC_2 = 0;
-float TC_3 = 0;
-float TC_4 = 0;
 
-// Temp (DS18B20)
+// FreeRTOS
+uint32_t IdleCounter = 0;
+
+// Temperature monitoring (DS18B20)
 extern float Temp[MAXDEVICES_ON_THE_BUS];
 
 // Flow monitoring
@@ -137,26 +131,17 @@ xTaskHandle HUMID_Task_Handler;
 
 xSemaphoreHandle HUMID_Sem;
 
-xTaskHandle FLOW1_Task_Handler;
+xTaskHandle FLOW_Task_Handler;
 xTaskHandle FLOW2_Task_Handler;
 
-xTaskHandle TEMP1_Task_Handler;
-xTaskHandle TEMP2_Task_Handler;
-xTaskHandle TEMP3_Task_Handler;
-xTaskHandle TEMP4_Task_Handler;
-
-xSemaphoreHandle TEMP_Sem;
+xTaskHandle TEMP_Task_Handler;
 
 xTaskHandle SDCARD_Task_Handler;
 
 void IDLE_Task (void *argument);
 void HUMID_Task (void *argument);
-void FLOW1_Task (void *argument);
-void FLOW2_Task (void *argument);
-void TEMP1_Task (void *argument);
-void TEMP2_Task (void *argument);
-void TEMP3_Task (void *argument);
-void TEMP4_Task (void *argument);
+void FLOW_Task (void *argument);
+void TEMP_Task (void *argument);
 void SDCARD_Task (void *argument);
 
 /* USER CODE END 0 */
@@ -198,11 +183,6 @@ int main(void)
   MX_SPI1_Init();
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
-  // Initializations of time
-  LB_Init_Time(&Measurement_Time);
-
-  // The initialization of humidity sensor
-  BME280_init(&bme280_sens_dev);
 
   // FreeRTOS
   xTaskCreate(IDLE_Task, "IDLE", STACK_SIZE_SMALL, NULL, 1, &IDLE_Task_Handler);
@@ -210,14 +190,9 @@ int main(void)
   xTaskCreate(HUMID_Task, "HUMID", STACK_SIZE_MEDIUM, NULL, 2, &HUMID_Task_Handler);
   HUMID_Sem = xSemaphoreCreateBinary();
 
-  xTaskCreate(FLOW1_Task, "FLOW1", STACK_SIZE_SMALL, NULL, 2, &FLOW1_Task_Handler);
-  xTaskCreate(FLOW2_Task, "FLOW2", STACK_SIZE_SMALL, NULL, 2, &FLOW2_Task_Handler);
+  xTaskCreate(FLOW_Task, "FLOW", STACK_SIZE_SMALL, NULL, 2, &FLOW_Task_Handler);
 
-  xTaskCreate(TEMP1_Task, "TEMP1", STACK_SIZE_MEDIUM, NULL, 2, &TEMP1_Task_Handler);
-  xTaskCreate(TEMP2_Task, "TEMP2", STACK_SIZE_MEDIUM, NULL, 2, &TEMP2_Task_Handler);
-  xTaskCreate(TEMP3_Task, "TEMP3", STACK_SIZE_MEDIUM, NULL, 2, &TEMP3_Task_Handler);
-  xTaskCreate(TEMP4_Task, "TEMP4", STACK_SIZE_MEDIUM, NULL, 2, &TEMP4_Task_Handler);
-  TEMP_Sem = xSemaphoreCreateBinary();
+  xTaskCreate(TEMP_Task, "TEMP", STACK_SIZE_MEDIUM, NULL, 2, &TEMP_Task_Handler);
 
   xTaskCreate(SDCARD_Task, "SD", STACK_SIZE_MEDIUM, NULL, 3, &SDCARD_Task_Handler);
 
@@ -659,6 +634,9 @@ void IDLE_Task (void *argument)
 
 void HUMID_Task (void *argument)
 {
+	// The initialization of humidity sensor
+	BME280_init(&bme280_sens_dev);
+
 	while(1)
 	{
 		xSemaphoreTake(HUMID_Sem, 2500);
@@ -672,6 +650,9 @@ void SDCARD_Task (void *argument)
 {
 	FRESULT f_result;
 
+	// The initialization of time
+	LB_Init_Time(&Measurement_Time);
+
 	while(1)
 	{
 		if (measurement_is_active)
@@ -682,8 +663,7 @@ void SDCARD_Task (void *argument)
 			{
 				LB_Times_Ticking(&Measurement_Time);
 				char * buffer = pvPortMalloc(MAX_DATA_LEN * sizeof(char));
-				sprintf( buffer, "%02u:%02u,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.2f\r\n", Measurement_Time.time[1], Measurement_Time.time[0], TC_1, TC_2, TC_3, TC_4, Flow_Rate_1, Flow_Rate_2, ( (float) bme280_sens_data.humidity / 1024.0f));
-//				sprintf( buffer, "%02u:%02u,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.2f\r\n", Measurement_Time.time[1], Measurement_Time.time[0], Temp[0], TC_2, TC_3, TC_4, Flow_Rate_1, Flow_Rate_2, ( (float) bme280_sens_data.humidity / 1024.0f));
+				sprintf( buffer, "%02u:%02u,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.2f\r\n", Measurement_Time.time[1], Measurement_Time.time[0], Temp[0], Temp[1], Temp[2], Temp[3], Flow_Rate_1, Flow_Rate_2, ( (float) bme280_sens_data.humidity / 1024.0f));
 				Update_File(file_name, &Measurement_Counter, file_extension, buffer);
 				vPortFree(buffer);
 				Unmount_SD("/");
@@ -699,182 +679,31 @@ void SDCARD_Task (void *argument)
 	}
 }
 
-void FLOW1_Task (void *argument)
+void FLOW_Task (void *argument)
 {
+	// The initializations of timers
 	HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1);
-	while(1)
-	{
-		Flow_Rate_1 = (float) Flow1_pulse_counter / FLOW_RATE_COEFFICIENT;
-		Flow1_pulse_counter = 0;
-		vTaskDelay(1000UL);
-	}
-}
-
-void FLOW2_Task (void *argument)
-{
 	HAL_TIM_IC_Start_IT(&htim3, TIM_CHANNEL_4);
+
 	while(1)
 	{
-		Flow_Rate_2 = (float) Flow2_pulse_counter / FLOW_RATE_COEFFICIENT;
+		Flow_Rate_1 = (float) Flow1_pulse_counter / FLOW_RATE_COEFFICIENT1;
+		Flow_Rate_2 = (float) Flow2_pulse_counter / FLOW_RATE_COEFFICIENT2;
+		Flow1_pulse_counter = 0;
 		Flow2_pulse_counter = 0;
 		vTaskDelay(1000UL);
 	}
 }
 
-void TEMP1_Task (void *argument)
+void TEMP_Task (void *argument)
 {
-	uint8_t temp[2];
-	uint16_t Temperature;
-	float Celsius;
+	// Searching for ROM codes
+	get_ROMid();
 
 	while(1)
 	{
-		xSemaphoreTake(TEMP_Sem, 2500);
-
-		/* SPI */
-		HAL_GPIO_WritePin(CS_T1_GPIO_Port, CS_T1_Pin, GPIO_PIN_RESET);
-		HAL_Delay(1);
-		HAL_SPI_Receive(&hspi1, temp, 2, 10);
-		HAL_GPIO_WritePin(CS_T1_GPIO_Port, CS_T1_Pin, GPIO_PIN_SET);
-
-//		OPTION 1
-//		xSemaphoreGive(TEMP_Sem);
-
-		/* Temperature Conversion */
-		Temperature = temp[1];
-		Temperature = Temperature << 8;
-		Temperature = Temperature + temp[0];
-		Temperature = Temperature >> 3;
-		Celsius = (float) Temperature * 0.25f;
-
-		/* IIR filter */
-		TC_1 = (1.0f - 0.2f) * TC_2 + 0.2f * Celsius;
-
-//		OPTION 2
-		xSemaphoreGive(TEMP_Sem);
-
-		osDelay(pdMS_TO_TICKS(333UL));
-//		vTaskDelay(333UL);
-	}
-
-//	get_ROMid();
-//
-//	while(1)
-//	{
-//		get_Temperature();
-//		osDelay(pdMS_TO_TICKS(1000UL));
-//	}
-}
-
-void TEMP2_Task (void *argument)
-{
-	uint8_t temp[2];
-	uint16_t Temperature;
-	float Celsius;
-
-	while(1)
-	{
-		xSemaphoreTake(TEMP_Sem, 2500);
-
-		/* SPI */
-		HAL_GPIO_WritePin(CS_T2_GPIO_Port, CS_T2_Pin, GPIO_PIN_RESET);
-		HAL_Delay(1);
-		HAL_SPI_Receive(&hspi1, temp, 2, 10);
-		HAL_GPIO_WritePin(CS_T2_GPIO_Port, CS_T2_Pin, GPIO_PIN_SET);
-
-//		OPTION 1
-//		xSemaphoreGive(TEMP_Sem);
-
-		/* Temperature Conversion */
-		Temperature = temp[1];
-		Temperature = Temperature << 8;
-		Temperature = Temperature + temp[0];
-		Temperature = Temperature >> 3;
-		Celsius = (float) Temperature * 0.25f;
-
-		/* IIR filter */
-		TC_2 = (1.0f - 0.2f) * TC_2 + 0.2f * Celsius;
-
-//		OPTION 2
-		xSemaphoreGive(TEMP_Sem);
-
-		osDelay(pdMS_TO_TICKS(333UL));
-//		vTaskDelay(333UL);
-
-	}
-}
-
-void TEMP3_Task (void *argument)
-{
-	uint8_t temp[2];
-	uint16_t Temperature;
-	float Celsius;
-
-	while(1)
-	{
-		xSemaphoreTake(TEMP_Sem, 2500);
-
-		/* SPI */
-		HAL_GPIO_WritePin(CS_T3_GPIO_Port, CS_T3_Pin, GPIO_PIN_RESET);
-		HAL_Delay(1);
-		HAL_SPI_Receive(&hspi1, temp, 2, 10);
-		HAL_GPIO_WritePin(CS_T3_GPIO_Port, CS_T3_Pin, GPIO_PIN_SET);
-
-//		OPTION 1
-//		xSemaphoreGive(TEMP_Sem);
-
-		/* Temperature Conversion */
-		Temperature = temp[1];
-		Temperature = Temperature << 8;
-		Temperature = Temperature + temp[0];
-		Temperature = Temperature >> 3;
-		Celsius = (float) Temperature * 0.25f;
-
-		/* IIR filter */
-		TC_3 = (1.0f - 0.2f) * TC_2 + 0.2f * Celsius;
-
-//		OPTION 2
-		xSemaphoreGive(TEMP_Sem);
-
-		osDelay(pdMS_TO_TICKS(333UL));
-//		vTaskDelay(333UL);
-	}
-}
-
-void TEMP4_Task (void *argument)
-{
-	uint8_t temp[2];
-	uint16_t Temperature;
-	float Celsius;
-
-	while(1)
-	{
-		xSemaphoreTake(TEMP_Sem, 2500);
-
-		/* SPI */
-		HAL_GPIO_WritePin(CS_T4_GPIO_Port, CS_T4_Pin, GPIO_PIN_RESET);
-		HAL_Delay(1);
-		HAL_SPI_Receive(&hspi1, temp, 2, 10);
-		HAL_GPIO_WritePin(CS_T4_GPIO_Port, CS_T4_Pin, GPIO_PIN_SET);
-
-//		OPTION 1
-//		xSemaphoreGive(TEMP_Sem);
-
-		/* Temperature Conversion */
-		Temperature = temp[1];
-		Temperature = Temperature << 8;
-		Temperature = Temperature + temp[0];
-		Temperature = Temperature >> 3;
-		Celsius = (float) Temperature * 0.25f;
-
-		/* IIR filter */
-		TC_4 = (1.0f - 0.2f) * TC_2 + 0.2f * Celsius;
-
-//		OPTION 2
-		xSemaphoreGive(TEMP_Sem);
-
-		osDelay(pdMS_TO_TICKS(333UL));
-//		vTaskDelay(333UL);
+		get_Temperature();
+		osDelay(pdMS_TO_TICKS(1000UL));
 	}
 }
 
