@@ -50,7 +50,8 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 // Flow monitoring
-#define FLOW_RATE_COEFFICIENT 5.5
+#define FLOW_RATE_COEFFICIENT1 5.5
+#define FLOW_RATE_COEFFICIENT2 5.5
 
 // FreeRTOS
 #define STACK_SIZE_MEDIUM 512
@@ -658,7 +659,7 @@ void FLOW1_Task (void *argument)
 	HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1);
 	while(1)
 	{
-		Flow_Rate_1 = (float) Flow1_pulse_counter / FLOW_RATE_COEFFICIENT;
+		Flow_Rate_1 = (float) Flow1_pulse_counter / FLOW_RATE_COEFFICIENT1;
 		Flow1_pulse_counter = 0;
 		vTaskDelay(1000UL);
 	}
@@ -669,7 +670,7 @@ void FLOW2_Task (void *argument)
 	HAL_TIM_IC_Start_IT(&htim3, TIM_CHANNEL_4);
 	while(1)
 	{
-		Flow_Rate_2 = (float) Flow2_pulse_counter / FLOW_RATE_COEFFICIENT;
+		Flow_Rate_2 = (float) Flow2_pulse_counter / FLOW_RATE_COEFFICIENT2;
 		Flow2_pulse_counter = 0;
 		vTaskDelay(1000UL);
 	}
