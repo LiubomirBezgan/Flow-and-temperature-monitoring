@@ -43,7 +43,11 @@
 // Time
 #include "LB_time.h"
 
+// LCD
+#include "lcd_i2c.h"
+
 // Standard
+#include "stdio.h"
 #include "stdbool.h"
 
 /* USER CODE END Includes */
@@ -68,6 +72,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 I2C_HandleTypeDef hi2c1;
+I2C_HandleTypeDef hi2c3;
 
 SPI_HandleTypeDef hspi2;
 
@@ -105,6 +110,9 @@ File_counter_t Measurement_Counter =
 const char * file_name = "Meas";
 const char * file_extension = ".csv";
 
+// LCD
+struct lcd_disp TEMP_LCD;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -116,6 +124,7 @@ static void MX_I2C1_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_USART3_UART_Init(void);
+static void MX_I2C3_Init(void);
 
 /* USER CODE BEGIN PFP */
 
@@ -136,11 +145,14 @@ xTaskHandle TEMP_Task_Handler;
 
 xTaskHandle SDCARD_Task_Handler;
 
+xTaskHandle LCD_Task_Handler;
+
 void IDLE_Task (void *argument);
 void HUMID_Task (void *argument);
 void FLOW_Task (void *argument);
 void TEMP_Task (void *argument);
 void SDCARD_Task (void *argument);
+void LCD_Task (void *argument);
 
 /* USER CODE END 0 */
 
@@ -179,6 +191,7 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM3_Init();
   MX_USART3_UART_Init();
+  MX_I2C3_Init();
   /* USER CODE BEGIN 2 */
 
   // FreeRTOS
@@ -192,6 +205,8 @@ int main(void)
   xTaskCreate(TEMP_Task, "TEMP", STACK_SIZE_MEDIUM, NULL, 2, &TEMP_Task_Handler);
 
   xTaskCreate(SDCARD_Task, "SD", STACK_SIZE_MEDIUM, NULL, 3, &SDCARD_Task_Handler);
+
+  xTaskCreate(LCD_Task, "LCD", STACK_SIZE_MEDIUM, NULL, 1, &LCD_Task_Handler);
 
   // TIM1
   HAL_TIM_Base_Start_IT(&htim1); // periodic delay timer
@@ -289,6 +304,40 @@ static void MX_I2C1_Init(void)
   /* USER CODE BEGIN I2C1_Init 2 */
 
   /* USER CODE END I2C1_Init 2 */
+
+}
+
+/**
+  * @brief I2C3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2C3_Init(void)
+{
+
+  /* USER CODE BEGIN I2C3_Init 0 */
+
+  /* USER CODE END I2C3_Init 0 */
+
+  /* USER CODE BEGIN I2C3_Init 1 */
+
+  /* USER CODE END I2C3_Init 1 */
+  hi2c3.Instance = I2C3;
+  hi2c3.Init.ClockSpeed = 100000;
+  hi2c3.Init.DutyCycle = I2C_DUTYCYCLE_2;
+  hi2c3.Init.OwnAddress1 = 0;
+  hi2c3.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c3.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c3.Init.OwnAddress2 = 0;
+  hi2c3.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c3.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2C3_Init 2 */
+
+  /* USER CODE END I2C3_Init 2 */
 
 }
 
@@ -653,6 +702,21 @@ void TEMP_Task (void *argument)
 	{
 		get_Temperature();
 		osDelay(pdMS_TO_TICKS(1000UL));
+	}
+}
+
+void LCD_Task (void *argument)
+{
+	TEMP_LCD.addr = (LCD_ADDRESS << 1);
+	TEMP_LCD.bl = true;
+	lcd_init(&TEMP_LCD);
+
+	while(1)
+	{
+		  sprintf((char *) TEMP_LCD.f_line, "T1=%.1f  T2=%.1f", Temp[0], Temp[1]);
+		  sprintf((char *) TEMP_LCD.s_line, "T3=%.1f  T4=%.1f", Temp[2], Temp[3]);
+		  lcd_display(&TEMP_LCD);
+		vTaskDelay(1000UL);
 	}
 }
 

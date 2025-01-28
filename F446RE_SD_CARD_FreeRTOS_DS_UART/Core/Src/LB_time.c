@@ -29,7 +29,7 @@ void LB_Init_Time(Time_t * ptime)
   * @param  pdate points to an initialized Date_t data type (date)
   * @retval returns true if a new day has come.
   */
-bool LB_Times_Ticking(Time_t * ptime)
+void LB_Times_Ticking(Time_t * ptime)
 {
 	(ptime->seconds)++;
 
