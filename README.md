@@ -23,9 +23,10 @@ The solution was developed for practical use in the study [An Experimental and N
 
 ## FUTURE PERSPECTIVES
 + Addition of new features:
-  + displaying current values (implemented in the "HD44780_(I2C)" branch),
-  + the lowest and the highest values recording,
-  + power switch.
+  + Displaying current values (implemented in the "HD44780_(I2C)" branch),
+  + Valve control system for PID water temperature regulation,
+  + Recording of the lowest and highest values,
+  + Power switch;
 + Optimizing:
-  + power consumption optimizing,
-  + variables revising.
+  + Power consumption optimizing,
+  + Revising variables.
