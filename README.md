@@ -7,7 +7,7 @@ FreeRTOS \ STM32F446RET6 \ STM32CubeIDE
 
 ## DESCRIPTION & PURPOSE
 
-The device serves to register liquid flow and temperature values, as well as ambient humidity and temperature. A measurement is initiated and stopped by pressing a button mounted on the NUCLEO-F446RE board. An LED, that is located on the breadboard, indicates that the measurement is ongoing. The measurement results are recorded on an SD card as a "MeasXXX.csv" file, where XXX is the number of a corresponding measurement.
+The device presented in Figure 1 serves to register liquid flow and temperature values, as well as ambient humidity and temperature. A measurement is initiated and stopped by pressing a button mounted on the NUCLEO-F446RE board. An LED located on the breadboard indicates that the measurement is ongoing. The measurement results are recorded on an SD card as a "MeasXXX.csv" file, where XXX is the number of a corresponding measurement.
 + MCU Architecture: **Arm** 32-bit **Cortex-M4** CPU with DSP and FPU (STM32F446RET6)
 + OS: **FreeRTOS**
 + Peripheries:
@@ -20,6 +20,12 @@ The solution was developed for practical use in the study [An Experimental and N
 
 ![Figure 2.](https://github.com/LiubomirBezgan/Flow-and-temperature-monitoring/blob/main/scientific%20article_mdpi.png?raw=true, "Figure 2. An Experimental and Numerical Investigation of a Heat Exchanger for Showers")
 *Figure 2.* The study "An Experimental and Numerical Investigation of a Heat Exchanger for Showers" where the device was used for experimental measurements.
+
+## LOG SYSTEM
+The log system is based on FatFS and records data by writing the time in seconds, four liquid temperatures in °C, two liquid flow rates in L/min, and ambient humidity in % to a "MeasXXX.csv" file, where XXX represents the corresponding measurement number. The data is stored on an SD card. Pressing the button on the NUCLEO-F446RE board starts and stops the measurement. The .csv format allows for the quick preparation of logged data for further analysis (Figure 3).
+
+![Figure 3.](https://github.com/LiubomirBezgan/Flow-and-temperature-monitoring/blob/main/logs.png?raw=true, "Figure 3. Readability improvement of Meas019.csv in Excel")
+*Figure 3.* Readability improvement of Meas019.csv in Excel.
 
 ## FUTURE PERSPECTIVES
 + Addition of new features:
